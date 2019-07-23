@@ -2,7 +2,8 @@ import pandas as pd
 
 class Player:
     def __init__(self):
-        self.hand = pd.DataFrame(columns=['suit', 'value'])
+        self.hand = pd.DataFrame(columns=['suit', 'value', 'name'])
+        self.hand_score = None
         self.table_position = 0
         self.is_dealer = False
         self.is_small_blind = False

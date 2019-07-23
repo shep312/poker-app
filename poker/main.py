@@ -1,4 +1,4 @@
-from game import Game
+from poker.game import Game
 
 run = Game(n_players=4)
 run.deal_hole()
