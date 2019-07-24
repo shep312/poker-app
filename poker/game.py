@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 from random import shuffle
 from poker.actors import User, Opponent, Player
-from poker.utils import get_card_name, determine_hand
+from poker.utils import get_card_name
 
 class Game:
 
@@ -41,35 +41,35 @@ class Game:
     def rotate_dealer(self):
         pass
 
-    def deal_card(self, recipient):
+    def deal_card(self, recipient=None):
         card = self.deck[-1]
         card_dict = {
             'suit': card[0],
             'value': card[1],
             'name': get_card_name(card)
         }
-        if isinstance(recipient, Player):
-            recipient.hand = \
-                recipient.hand.append(card_dict, ignore_index=True)
-        elif isinstance(recipient, pd.DataFrame):
-            recipient = recipient.append(card_dict, ignore_index=True)
+        if recipient:
+            recipient.hole = \
+                recipient.hole.append(card_dict, ignore_index=True)
+            recipient.hole.reset_index(drop=True, inplace=True)
         else:
-            raise TypeError('Entity being dealt to must be a DataFrame')
+            self.community_cards = \
+                self.community_cards.append(card_dict, ignore_index=True)
+            self.community_cards.reset_index(drop=True, inplace=True)
         self.deck.remove(card)
 
     def deal_hole(self):
         for player in self.players:
             for i in range(2):
                 self.deal_card(player)
-            #TODO when this value is set, update player.best_hand and player.best_hand_high_card
-            player.hand_score = \
-                determine_hand(player.hand, n_players=self.n_players)
+            player.hand = player.hole.copy()
+            player.determine_hand(n_players=self.n_players)
 
     def deal_community(self, n_cards=1):
         for i in range(n_cards):
-            self.deal_card(self.community_cards)
+            self.deal_card()
         for player in self.players:
-            player.hand += self.community_cards
-            player.hand_score = \
-                determine_hand(player.hand, n_players=self.n_players)
+            player.hand = pd.concat([player.hand, self.community_cards])
+            player.hand.reset_index(drop=True, inplace=True)
+            player.determine_hand(n_players=self.n_players)
 
