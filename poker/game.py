@@ -4,6 +4,7 @@ from random import shuffle
 from poker.actors import User, Opponent, Player
 from poker.utils import get_card_name
 
+
 class Game:
 
     def __init__(self, n_players):
@@ -69,7 +70,19 @@ class Game:
         for i in range(n_cards):
             self.deal_card()
         for player in self.players:
-            player.hand = pd.concat([player.hand, self.community_cards])
-            player.hand.reset_index(drop=True, inplace=True)
-            player.determine_hand(n_players=self.n_players)
+            if not player.folded:
+                player.hand = pd.concat([player.hole, self.community_cards])
+                player.hand.reset_index(drop=True, inplace=True)
+                player.determine_hand(n_players=self.n_players)
 
+    def determine_winner(self):
+        result = pd.DataFrame({
+            'hand_score': [player.best_hand_numeric for player in self.players],
+            'hand_name': [player.best_hand for player in self.players],
+            'hand_high_card': [player.best_hand_high_card
+                               for player in self.players],
+            'position': [player.table_position for player in self.players]
+        })
+        result.sort_values(by='hand_score', ascending=False, inplace=True)
+        print('Player in position {} wins!'.format(result.iloc[0, -1]))
+        print('Hands:\n{}'.format(result))

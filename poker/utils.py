@@ -34,7 +34,6 @@ def get_card_name(card):
 
     Returns:
         A string describing the hand in English
-    -------
     """
     suits = {
         0: 'Spades',
