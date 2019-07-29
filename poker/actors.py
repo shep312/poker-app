@@ -151,27 +151,26 @@ class Player:
             p_straight = 0
             for i, card in self.hand.iterrows():
                 # Step in positive direction - do we have it or do we need it
-                n_max_to_right = min(14 - card['value'], 4)
-                p_cards_to_right = np.zeros([n_max_to_right, ])
-                for step, j in enumerate(range(n_max_to_right), start=1):
+                straight_options = np.zeros([5, ])
+                straight_options[2] = 1
+                for step in range(1, 3):
                     step_up = card['value'] + step
                     if step_up in self.hand['value'].values:
-                        p_cards_to_right[j] = 1
+                        straight_options[2 + step] = 1
+                    elif step_up > 14:
+                        straight_options[2 + step] = 0
                     else:
-                        p_cards_to_right[j] = 4 * p_card
+                        straight_options[2 + step] = 4 * p_card
                 # Step in negative direction - do we have it or do we need it
-                n_max_to_left = min(card['value'] - 2, 4)
-                p_cards_to_left = np.zeros([n_max_to_left, ])
-                for step, j in enumerate(range(n_max_to_left), start=1):
-                    step_up = card['value'] - step
-                    if step_up in self.hand['value'].values:
-                        p_cards_to_left[j] = 1
+                    step_down = card['value'] - step
+                    if step_down in self.hand['value'].values:
+                        straight_options[2 - step] = 1
+                    elif step_down < 1:
+                        straight_options[2 - step] = 0
                     else:
-                        p_cards_to_left[j] = 4 * p_card
-                straight_options = np.concatenate([p_cards_to_left, 
-                                                   np.array([1, ]),
-                                                   p_cards_to_right])
-                x = 5
+                        straight_options[2 - step] = 4 * p_card
+                p_centre_of_straight = np.prod(straight_options)
+                p_straight += p_centre_of_straight
                 
             # Straight could occur in other five cards
             p_straight += 0
