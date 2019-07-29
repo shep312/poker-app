@@ -64,7 +64,8 @@ class Game:
             for i in range(2):
                 self.deal_card(player)
             player.hand = player.hole.copy()
-            player.determine_hand(n_players=self.n_players)
+        for player in self.players:
+            player.determine_hand(n_players=self.n_players, deck=self.deck)
 
     def deal_community(self, n_cards=1):
         for i in range(n_cards):
@@ -73,7 +74,8 @@ class Game:
             if not player.folded:
                 player.hand = pd.concat([player.hole, self.community_cards])
                 player.hand.reset_index(drop=True, inplace=True)
-                player.determine_hand(n_players=self.n_players)
+        for player in self.players:
+            player.determine_hand(n_players=self.n_players, deck=self.deck)
 
     def determine_winner(self):
         result = pd.DataFrame({

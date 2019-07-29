@@ -22,6 +22,39 @@ stage_names = {
     7: 'river'
 }
 
+# Draws remaining at a given stage
+draws_remaining_at_stage = {
+    'not_started': 7,
+    'hole': 5,
+    'flop': 2,
+    'turn': 1,
+    'river': 0
+}
+
+# Encoded card suits
+suits = {
+    0: 'Spades',
+    1: 'Diamonds',
+    2: 'Hearts',
+    3: 'Clubs'
+}
+
+# Encoded card values
+values = {
+    2: '2',
+    3: '3',
+    4: '4',
+    5: '5',
+    6: '6',
+    7: '7',
+    8: '8',
+    9: '9',
+    10: '10',
+    11: 'Jack',
+    12: 'Queen',
+    13: 'King',
+    14: 'Ace'
+}
 
 def get_card_name(card):
     """
@@ -35,25 +68,4 @@ def get_card_name(card):
     Returns:
         A string describing the hand in English
     """
-    suits = {
-        0: 'Spades',
-        1: 'Diamonds',
-        2: 'Hearts',
-        3: 'Clubs'
-    }
-    values = {
-        2: '2',
-        3: '3',
-        4: '4',
-        5: '5',
-        6: '6',
-        7: '7',
-        8: '8',
-        9: '9',
-        10: '10',
-        11: 'Jack',
-        12: 'Queen',
-        13: 'King',
-        14: 'Ace'
-    }
     return '{} of {}'.format(values[card[1]], suits[card[0]])

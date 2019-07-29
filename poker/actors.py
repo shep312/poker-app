@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-from poker.utils import poker_hands_rank, stage_names
+from poker.utils import poker_hands_rank, stage_names, draws_remaining_at_stage
 
 
 class Player:
@@ -24,26 +24,30 @@ class Player:
         self.best_hand_high_card = 0
         self.best_hand_numeric = 0
 
-    def determine_hand(self, n_players):
+    def determine_hand(self, n_players, deck):
         """
         Determine what hands are present in a player's hand
         and therefore how strong it is
     
         Args:
-             hand (pandas.DataFrame): The hand as a dataframe
-             n_players (int): Number of players in game    
+             n_players (int): Number of players in game
+             deck (list): Cards remaining in the deck
         """
         assert isinstance(n_players, int), 'n_players must be a integer'
         assert self.hand.shape[0] <= 7, 'player has more than 7 cards'
 
         # Determine number of cards left in the deck for probability calculations
-        stage = stage_names.get(self.hand.shape[0], 'unknown')
-        if stage != 'not_started':
-            n_hole_cards = 2
-            n_community_cards = max(self.hand.shape[0] - n_hole_cards, 0)
-            cards_in_deck = 52 - n_community_cards - n_players * 2
-        else:
-            cards_in_deck = 52
+        n_cards_in_deck = len(deck)
+        n_cards_with_opponents = 52 - n_cards_in_deck - self.hand.shape[0]
+
+        # Probability any given card is in the deck
+        p_card_in_deck = (n_cards_in_deck - n_cards_with_opponents) / 52
+
+        # Probability that card can be drawn in current stage
+        stage = stage_names.get(self.hand.shape[0])
+        n_draws_remaining = draws_remaining_at_stage[stage]
+        p_card_drawn = p_card_in_deck / n_cards_in_deck
+        p_card = n_draws_remaining * p_card_drawn
 
         # Run checks to see what hands are currently present
         # High card
@@ -63,8 +67,11 @@ class Player:
             self.hand_score.loc['Pair', 'high_card'] = \
                 value_counts[value_counts == 2].idxmax()
         else:
-            # TODO probability calc
-            pass
+            # For each single card, there should be 3 others out there with
+            # its value
+            n_potential_cards = 3 * sum(value_counts == 1)
+            self.hand_score.loc['Pair', 'probability_of_occurring'] = \
+                n_potential_cards * p_card
 
         # Two pair
         if sum(value_counts == 2) == 2:
@@ -73,8 +80,14 @@ class Player:
             self.hand_score.loc['Two pairs', 'high_card'] = \
                 value_counts[value_counts == 2].idxmax()
         else:
-            # TODO probability calc
-            pass
+            # If there is already a pair, then the probability of another pair
+            # given the remaining singles. If not, the probability of any
+            # one of our singles becoming a pair up to a max of 2 pairs
+            if sum(value_counts == 2) == 1:
+                p = 3 * sum(value_counts == 1) * p_card
+            else:
+                p = (3 * p_card)**max(sum(value_counts == 1), 2)
+            self.hand_score.loc['Pair', 'probability_of_occurring'] = p
 
         # Three of a kind
         if any(value_counts == 3):
@@ -88,15 +101,33 @@ class Player:
 
         # Straight
         # TODO need to account for the case where Ace is a 1
-        sorted_hand = self.hand.sort_values(by='value')
-        sorted_hand['diff'] = sorted_hand['value'].diff()
-        sorted_hand['not_linked'] = (sorted_hand['diff'] != 1).cumsum()
-        sorted_hand['streak'] = sorted_hand.groupby('not_linked').cumcount()
-        if sorted_hand['streak'].max() >= 4:
+        aces_high_hand = self.hand.copy()
+        aces_low_hand = aces_high_hand.copy()
+        aces_low_hand['value'] = aces_low_hand['value'].replace(14, 1)
+
+        def calc_streak(hand):
+            hand = hand.sort_values(by='value')
+            hand['diff'] = hand['value'].diff()
+            hand['not_linked'] = (hand['diff'] != 1).cumsum()
+            hand['streak'] = hand.groupby('not_linked').cumcount()
+            return hand
+
+        aces_high_hand = calc_streak(aces_high_hand)
+        aces_low_hand = calc_streak(aces_low_hand)
+
+        straight_type = None
+        if aces_high_hand['streak'].max() >= 4:
             self.hand_score.loc['Straight', 'present'] = True
             self.hand_score.loc['Straight', 'probability_of_occurring'] = 1
             self.hand_score.loc['Straight', 'high_card'] = \
-                sorted_hand.loc[sorted_hand['streak'] == 4, 'value'].values
+                aces_high_hand.loc[aces_high_hand['streak'] == 4, 'value'].values
+            straight_type = 'aces_high'
+        elif aces_low_hand['streak'].max() >= 4:
+            self.hand_score.loc['Straight', 'present'] = True
+            self.hand_score.loc['Straight', 'probability_of_occurring'] = 1
+            self.hand_score.loc['Straight', 'high_card'] = \
+                aces_low_hand.loc[aces_low_hand['streak'] == 4, 'value'].values
+            straight_type = 'aces_low'
         else:
             # TODO probability calc
             pass
@@ -137,31 +168,47 @@ class Player:
             pass
 
         # Straight flush
-        if self.hand_score.loc['Straight', 'present']:
+        def check_straight_type(hand):
             straight_link = \
-                sorted_hand.loc[sorted_hand['streak'] == 4, 'not_linked']
+                hand.loc[hand['streak'] == 4, 'not_linked']
             straight_cards = \
-                sorted_hand[sorted_hand['not_linked'] == straight_link.max()]
-            if straight_cards['suit'].nunique() == 1:
+                hand[hand['not_linked'] == straight_link.max()]
+            if straight_cards['suit'].nunique() == 1 \
+                    and straight_cards['value'].max() == 14:
+                return 'Royal flush'
+            elif straight_cards['suit'].nunique() == 1:
+                return 'Straight flush'
+            else:
+                return None
+
+        if straight_type == 'aces_high':
+            if check_straight_type(aces_high_hand) == 'Straight flush':
                 self.hand_score.loc['Straight flush', 'present'] = True
                 self.hand_score.loc['Straight flush',
                                     'probability_of_occurring'] = 1
                 self.hand_score.loc['Straight flush', 'high_card'] = \
                     self.hand_score.loc['Straight', 'high_card']
-        else:
-            # TODO probability calc
-            pass
-
-        # Royal flush
-        if self.hand_score.loc['Straight flush', 'present'] \
-                and self.hand_score.loc['Flush', 'high_card'] == 14:
-            self.hand_score.loc['Royal flush', 'present'] = True
-            self.hand_score.loc['Royal flush', 'probability_of_occurring'] = 1
-            self.hand_score.loc['Royal flush', 'high_card'] = \
-                self.hand_score.loc['Straight flush', 'high_card']
-        else:
-            # TODO probability calc
-            pass
+            else:
+                # TODO probability calc
+                pass
+            if check_straight_type(aces_high_hand) == 'Royal flush':
+                self.hand_score.loc['Royal flush', 'present'] = True
+                self.hand_score.loc['Royal flush', 'probability_of_occurring'] = 1
+                self.hand_score.loc['Royal flush', 'high_card'] = \
+                    self.hand_score.loc['Straight', 'high_card']
+            else:
+                # TODO probability calc
+                pass
+        elif straight_type == 'aces_low':
+            if check_straight_type(aces_low_hand) == 'Straight flush':
+                self.hand_score.loc['Straight flush', 'present'] = True
+                self.hand_score.loc['Straight flush',
+                                    'probability_of_occurring'] = 1
+                self.hand_score.loc['Straight flush', 'high_card'] = \
+                    self.hand_score.loc['Straight', 'high_card']
+            else:
+                # TODO probability calc
+                pass
 
         # Pick out best hand
         present_hands = self.hand_score[self.hand_score['present'] == True]
