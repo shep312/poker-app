@@ -68,10 +68,17 @@ class Player:
                 value_counts[value_counts == 2].idxmax()
         else:
             # For each single card, there should be 3 others out there with
-            # its value
+            # its value. 
             n_potential_cards = 3 * sum(value_counts == 1)
-            self.hand_score.loc['Pair', 'probability_of_occurring'] = \
-                n_potential_cards * p_card
+            p_pair = n_potential_cards * p_card
+            # Also the chance that any of the future cards could
+            # be pairs. Each number has a raw prob of 4/52. This needs to be 
+            # reduced to reflect that not all cards remain (multiply by p_card),
+            # then it needs to happen twice.
+            if n_draws_remaining >= 2:
+                p_pair += (p_card * 4 / 52)**2 
+            self.hand_score.loc['Pair', 'probability_of_occurring'] = p_pair
+                
 
         # Two pair
         if sum(value_counts == 2) == 2:
@@ -81,13 +88,18 @@ class Player:
                 value_counts[value_counts == 2].idxmax()
         else:
             # If there is already a pair, then the probability of another pair
-            # given the remaining singles. If not, the probability of any
-            # one of our singles becoming a pair up to a max of 2 pairs
+            # given the remaining singles. 
             if sum(value_counts == 2) == 1:
-                p = 3 * sum(value_counts == 1) * p_card
+                p_two_pair = 3 * sum(value_counts == 1) * p_card
+            # If not, the probability of any one of our singles becoming
+            # a pair up to a max of 2 pairs
             else:
-                p = (3 * p_card)**max(sum(value_counts == 1), 2)
-            self.hand_score.loc['Pair', 'probability_of_occurring'] = p
+                p_two_pair = (3 * p_card)**max(sum(value_counts == 1), 2)
+            # If two pairs appear outside the current hand
+            if n_draws_remaining >= 4:
+                p_two_pair += 4 * p_card * 3 * p_card
+            self.hand_score.loc['Two pairs', 'probability_of_occurring'] = \
+                p_two_pair
 
         # Three of a kind
         if any(value_counts == 3):
@@ -96,11 +108,18 @@ class Player:
             self.hand_score.loc['Three of a kind', 'high_card'] = \
                 value_counts[value_counts == 3].idxmax()
         else:
-            # TODO probability calc
-            pass
+            # For the single cards, need the probability of getting one of 
+            # 3 cards followed by the probability of one of 2 cards.
+            # For the double cards, one of 2 just once
+            p_three = 3 * p_card * 2 * p_card * sum(value_counts==1)
+            p_three += 2 * sum(value_counts==2) * p_card
+            # Also the prob of one happening with future , unconnected cards
+            if n_draws_remaining >= 3:
+                p_three += (p_card * 4 / 52)**3 
+            self.hand_score.loc['Three of a kind', 'probability_of_occurring'] \
+                = p_three
 
         # Straight
-        # TODO need to account for the case where Ace is a 1
         aces_high_hand = self.hand.copy()
         aces_low_hand = aces_high_hand.copy()
         aces_low_hand['value'] = aces_low_hand['value'].replace(14, 1)
@@ -129,8 +148,33 @@ class Player:
                 aces_low_hand.loc[aces_low_hand['streak'] == 4, 'value'].values
             straight_type = 'aces_low'
         else:
-            # TODO probability calc
-            pass
+            p_straight = 0
+            for i, card in self.hand.iterrows():
+                # Step in positive direction - do we have it or do we need it
+                n_max_to_right = min(14 - card['value'], 4)
+                p_cards_to_right = np.zeros([n_max_to_right, ])
+                for step, j in enumerate(range(n_max_to_right), start=1):
+                    step_up = card['value'] + step
+                    if step_up in self.hand['value'].values:
+                        p_cards_to_right[j] = 1
+                    else:
+                        p_cards_to_right[j] = 4 * p_card
+                # Step in negative direction - do we have it or do we need it
+                n_max_to_left = min(card['value'] - 2, 4)
+                p_cards_to_left = np.zeros([n_max_to_left, ])
+                for step, j in enumerate(range(n_max_to_left), start=1):
+                    step_up = card['value'] - step
+                    if step_up in self.hand['value'].values:
+                        p_cards_to_left[j] = 1
+                    else:
+                        p_cards_to_left[j] = 4 * p_card
+                straight_options = np.concatenate([p_cards_to_left, 
+                                                   np.array([1, ]),
+                                                   p_cards_to_right])
+                x = 5
+                
+            # Straight could occur in other five cards
+            p_straight += 0
 
         # Flush
         suit_counts = self.hand['suit'].value_counts()
