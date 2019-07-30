@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 from poker.utils import poker_hands_rank, stage_names, \
-    draws_remaining_at_stage, possible_straights
+    draws_remaining_at_stage, possible_straights, suits
 
 
 class Player:
@@ -175,7 +175,17 @@ class Player:
         else:
             p_flush = 0
             if n_draws_remaining >= 4:
-                p_flush += sum(p_flush == 1) * ((13 * p_card) / 52)**4
+                p_flush += sum(suit_counts == 1) * ((13 * p_card) / 52) ** 4
+                p_flush += sum(suit_counts == 2) * ((13 * p_card) / 52) ** 3
+                p_flush += sum(suit_counts == 3) * ((13 * p_card) / 52) ** 2
+                p_flush += sum(suit_counts == 4) * ((13 * p_card) / 52)
+            elif n_draws_remaining == 2:
+                p_flush += sum(suit_counts == 3) * ((13 * p_card) / 52) ** 2
+                p_flush += sum(suit_counts == 4) * ((13 * p_card) / 52)
+            elif n_draws_remaining == 1:
+                p_flush += sum(suit_counts == 4) * ((13 * p_card) / 52)
+            self.hand_score.loc['Flush', 'probability_of_occurring'] = \
+                p_flush
 
         # Full house
         if any(value_counts == 2) and any(value_counts == 3):
@@ -187,8 +197,16 @@ class Player:
             self.hand_score.loc['Full house', 'high_card'] = \
                 triple_value + double_value / 100
         else:
-            # TODO probability calc
-            pass
+            # Same as three of a kind
+            p_full_house = 3 * p_card * 2 * p_card * sum(value_counts==1)
+            p_full_house += 2 * sum(value_counts==2) * p_card
+
+            # Prob of a pair in the remaining cards
+            # TODO
+            p_full_house = p_full_house * p_card_drawn
+
+            self.hand_score.loc['Full house', 'probability_of_occurring'] = \
+                p_full_house
 
         # Four of a kind
         if any(value_counts == 4):
@@ -197,8 +215,19 @@ class Player:
             self.hand_score.loc['Four of a kind', 'high_card'] = \
                 value_counts[value_counts == 4].index.max()
         else:
-            # TODO probability calc
-            pass
+            # For the single cards, need the probability of getting one of
+            # 3 cards, followed by the probability of one of 2 cards,
+            # followed by the probability of one of 1 cards.
+            # For the double cards, one of 2 just once.
+            # For the tripe cards, one of just 1 once.
+            p_four = 3 * p_card * 2 * p_card * p_card * sum(value_counts==1)
+            p_four += 2 * p_card * sum(value_counts==2)
+            p_four += p_card * sum(value_counts == 3)
+            # Also the prob of one happening with future, unconnected cards
+            if n_draws_remaining >= 4:
+                p_four += (p_card * 4 / 52) ** 4
+            self.hand_score.loc['Four of a kind', 'probability_of_occurring'] \
+                = p_four
 
         # Straight flush
         def check_straight_type(hand):
@@ -221,17 +250,12 @@ class Player:
                                     'probability_of_occurring'] = 1
                 self.hand_score.loc['Straight flush', 'high_card'] = \
                     self.hand_score.loc['Straight', 'high_card']
-            else:
-                # TODO probability calc
-                pass
             if check_straight_type(aces_high_hand) == 'Royal flush':
                 self.hand_score.loc['Royal flush', 'present'] = True
                 self.hand_score.loc['Royal flush', 'probability_of_occurring'] = 1
                 self.hand_score.loc['Royal flush', 'high_card'] = \
                     self.hand_score.loc['Straight', 'high_card']
-            else:
-                # TODO probability calc
-                pass
+
         elif straight_type == 'aces_low':
             if check_straight_type(aces_low_hand) == 'Straight flush':
                 self.hand_score.loc['Straight flush', 'present'] = True
@@ -239,9 +263,41 @@ class Player:
                                     'probability_of_occurring'] = 1
                 self.hand_score.loc['Straight flush', 'high_card'] = \
                     self.hand_score.loc['Straight', 'high_card']
-            else:
-                # TODO probability calc
-                pass
+        else:
+            p_aces_high_sf = 0
+            for straight in possible_straights:
+                for suit in suits.keys():
+                    suited_cards = \
+                        aces_high_hand[aces_high_hand['suit'] == suit]
+                    p_aces_high_sf += np.prod(np.array(
+                        [1 if card in suited_cards['value'] else p_card
+                         for card in straight]
+                    ))
+
+            p_royal_flush = 0
+            for suit in suits.keys():
+                suited_cards = \
+                    aces_high_hand[aces_high_hand['suit'] == suit]
+                p_royal_flush += np.prod(np.array(
+                    [1 if card in suited_cards['value'] else p_card
+                     for card in [10, 11, 12, 13, 14]]
+                ))
+
+            p_aces_low_sf = 0
+            for straight in possible_straights:
+                for suit in suits.keys():
+                    suited_cards = \
+                        aces_low_hand[aces_low_hand['suit'] == suit]
+                    p_aces_low_sf += np.prod(np.array(
+                        [1 if card in suited_cards['value'] else p_card
+                         for card in straight]
+                    ))
+
+            self.hand_score.loc['Royal flush', 'probability_of_occurring'] = \
+                p_royal_flush
+
+            self.hand_score.loc['Straight flush', 'probability_of_occurring'] = \
+                p_aces_low_sf + p_aces_high_sf
 
         # Pick out best hand
         present_hands = self.hand_score[self.hand_score['present'] == True]

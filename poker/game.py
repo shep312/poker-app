@@ -31,9 +31,9 @@ class Game:
         self.players[1].is_small_blind = True
         self.players[2].is_big_blind = True
 
-        self.shuffle()
+        self.shuffle_deck()
 
-    def shuffle(self):
+    def shuffle_deck(self):
         suits = (0, 1, 2, 3)
         values = (2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14)
         self.deck = [[suit, val] for val in values for suit in suits]
