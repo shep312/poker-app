@@ -61,14 +61,14 @@ class Game:
 
     def deal_hole(self):
         for player in self.players:
-            for i in range(2):
+            for _ in range(2):
                 self.deal_card(player)
             player.hand = player.hole.copy()
         for player in self.players:
             player.determine_hand(n_players=self.n_players, deck=self.deck)
 
     def deal_community(self, n_cards=1):
-        for i in range(n_cards):
+        for _ in range(n_cards):
             self.deal_card()
         for player in self.players:
             if not player.folded:

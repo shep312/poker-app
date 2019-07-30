@@ -1,3 +1,6 @@
+from numpy import arange
+
+
 # Define the possible hands and their ranks
 poker_hands_rank = {
     'High card': 0,
@@ -55,6 +58,10 @@ values = {
     13: 'King',
     14: 'Ace'
 }
+
+# Possible straights for the probability of a straight calc
+possible_straights = [arange(i, i + 5) for i in range(1, 11)]
+
 
 def get_card_name(card):
     """

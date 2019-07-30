@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
-from poker.utils import poker_hands_rank, stage_names, draws_remaining_at_stage
+from poker.utils import poker_hands_rank, stage_names, \
+    draws_remaining_at_stage, possible_straights
 
 
 class Player:
@@ -35,6 +36,7 @@ class Player:
         """
         assert isinstance(n_players, int), 'n_players must be a integer'
         assert self.hand.shape[0] <= 7, 'player has more than 7 cards'
+        assert not any(self.hand.duplicated()), 'player has duplicate cards'
 
         # Determine number of cards left in the deck for probability calculations
         n_cards_in_deck = len(deck)
@@ -52,8 +54,7 @@ class Player:
         # Run checks to see what hands are currently present
         # High card
         if self.hand.shape[0]:
-            self.hand_score.loc['High card', 'present'] = True
-            self.hand_score.loc['High card', 'probability_of_occurring'] = 1
+            self._add_hand_to_player('High card')
             self.hand_score.loc['High card', 'high_card'] = \
                 self.hand['value'].max()
         else:
@@ -62,8 +63,7 @@ class Player:
         # Pair
         value_counts = self.hand['value'].value_counts()
         if any(value_counts == 2):
-            self.hand_score.loc['Pair', 'present'] = True
-            self.hand_score.loc['Pair', 'probability_of_occurring'] = 1
+            self._add_hand_to_player('Pair')
             self.hand_score.loc['Pair', 'high_card'] = \
                 value_counts[value_counts == 2].idxmax()
         else:
@@ -78,12 +78,10 @@ class Player:
             if n_draws_remaining >= 2:
                 p_pair += (p_card * 4 / 52)**2 
             self.hand_score.loc['Pair', 'probability_of_occurring'] = p_pair
-                
 
         # Two pair
         if sum(value_counts == 2) == 2:
-            self.hand_score.loc['Two pairs', 'present'] = True
-            self.hand_score.loc['Two pairs', 'probability_of_occurring'] = 1
+            self._add_hand_to_player('Two pairs')
             self.hand_score.loc['Two pairs', 'high_card'] = \
                 value_counts[value_counts == 2].idxmax()
         else:
@@ -103,8 +101,7 @@ class Player:
 
         # Three of a kind
         if any(value_counts == 3):
-            self.hand_score.loc['Three of a kind', 'present'] = True
-            self.hand_score.loc['Three of a kind', 'probability_of_occurring'] = 1
+            self._add_hand_to_player('Three of a kind')
             self.hand_score.loc['Three of a kind', 'high_card'] = \
                 value_counts[value_counts == 3].idxmax()
         else:
@@ -148,44 +145,37 @@ class Player:
                 aces_low_hand.loc[aces_low_hand['streak'] == 4, 'value'].values
             straight_type = 'aces_low'
         else:
+            # Straight is tricky to work out so going for a brute force check.
+            # Import a list of all the possible straights, then check the
+            # probability of each one given the cards we have. Sum those
+            # probabilities for the probability of any straight.
             p_straight = 0
-            for i, card in self.hand.iterrows():
-                # Step in positive direction - do we have it or do we need it
-                straight_options = np.zeros([5, ])
-                straight_options[2] = 1
-                for step in range(1, 3):
-                    step_up = card['value'] + step
-                    if step_up in self.hand['value'].values:
-                        straight_options[2 + step] = 1
-                    elif step_up > 14:
-                        straight_options[2 + step] = 0
-                    else:
-                        straight_options[2 + step] = 4 * p_card
-                # Step in negative direction - do we have it or do we need it
-                    step_down = card['value'] - step
-                    if step_down in self.hand['value'].values:
-                        straight_options[2 - step] = 1
-                    elif step_down < 1:
-                        straight_options[2 - step] = 0
-                    else:
-                        straight_options[2 - step] = 4 * p_card
-                p_centre_of_straight = np.prod(straight_options)
-                p_straight += p_centre_of_straight
-                
+            present_cards = set(aces_high_hand['value'].tolist()
+                                + aces_low_hand['value'].tolist())
+            for straight in possible_straights:
+                p_this_straight = np.prod(np.array(
+                    [1 if card in present_cards else 4 * p_card
+                     for card in straight]
+                ))
+                p_straight += p_this_straight
             # Straight could occur in other five cards
-            p_straight += 0
+            if n_draws_remaining >= 5:
+                # TODO work this out (probably insignificant)
+                p_straight += 0
+            self.hand_score.loc['Straight', 'probability_of_occurring'] = \
+                p_straight
 
         # Flush
         suit_counts = self.hand['suit'].value_counts()
         if any(suit_counts >= 5):
             flushed_suit = suit_counts[suit_counts >= 5].idxmax()
-            self.hand_score.loc['Flush', 'present'] = True
-            self.hand_score.loc['Flush', 'probability_of_occurring'] = 1
+            self._add_hand_to_player('Flush')
             self.hand_score.loc['Flush', 'high_card'] = \
                 self.hand.loc[self.hand['suit'] == flushed_suit, 'value'].max()
         else:
-            # TODO probability calc
-            pass
+            p_flush = 0
+            if n_draws_remaining >= 4:
+                p_flush += sum(p_flush == 1) * ((13 * p_card) / 52)**4
 
         # Full house
         if any(value_counts == 2) and any(value_counts == 3):
@@ -262,6 +252,17 @@ class Player:
         self.best_hand_numeric = \
             present_hands.loc[self.best_hand, 'hand_rank'] \
             + self.best_hand_high_card / 100
+
+    def _add_hand_to_player(self, hand):
+        """
+        If the appropriate conditions are met, add this hand to a players
+        hand_score property
+
+        Args:
+            hand (str): String indicating the hand that is present
+        """
+        self.hand_score.loc[hand, 'present'] = True
+        self.hand_score.loc[hand, 'probability_of_occurring'] = 1
 
 
 class Opponent(Player):
