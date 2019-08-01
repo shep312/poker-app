@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 from poker.utils import poker_hands_rank, stage_names, \
-    draws_remaining_at_stage, possible_straights, suits
+    draws_remaining_at_stage, possible_straights, suits, possible_full_houses
 
 
 class Player:
@@ -38,18 +38,56 @@ class Player:
         assert self.hand.shape[0] <= 7, 'player has more than 7 cards'
         assert not any(self.hand.duplicated()), 'player has duplicate cards'
 
-        # Determine number of cards left in the deck for probability calculations
-        n_cards_in_deck = len(deck)
-        n_cards_with_opponents = 52 - n_cards_in_deck - self.hand.shape[0]
-
-        # Probability any given card is in the deck
-        p_card_in_deck = (n_cards_in_deck - n_cards_with_opponents) / 52
-
-        # Probability that card can be drawn in current stage
+        # Determine how many card draws are left at this stage of the game
         stage = stage_names.get(self.hand.shape[0])
         n_draws_remaining = draws_remaining_at_stage[stage]
-        p_card_drawn = p_card_in_deck / n_cards_in_deck
-        p_card = n_draws_remaining * p_card_drawn
+
+        # Distance from dealer's left
+        distance_from_dealers_left = self.table_position - 1
+        if distance_from_dealers_left == -1:
+            distance_from_dealers_left = n_players
+
+        # Determine number of cards left in the deck for probability calculations
+        n_cards_in_deck = len(deck)
+
+        # Probability that a card is still in the deck at this stage
+        # I.E. Not in another player's hand
+        p_card_in_deck = n_cards_in_deck / 52
+
+
+        # Turn this probability into the probability that any given card
+        # will be drawn during the remainder of the game.
+        p_card = n_draws_remaining / 52
+
+        # Need to account
+        # for decreasing probability in the later stages of the game at the
+        # early stages due to other players picking up cards.
+        # Also need to account for the players position - dealer's left
+        # gets first cards etc.
+        # if stage == 'hole':
+        #     # 3 draws from the current deck at the flop
+        #     p_card = 3 * p_card_in_deck / n_cards_in_deck
+        #     # Following this, 3 cards fewer in the deck available for the
+        #     # turn. Also as many cards fewer as positions player is from the
+        #     # dealer
+        #     p_card += (n_cards_in_deck - 3) / 52 \
+        #         / (n_cards_in_deck - 3 - distance_from_dealers_left)
+        #     # Following this, 3 cards fewer in the deck from the flop,
+        #     # plus 1 * n_players fewer from the turn
+        #     p_card_drawn = (n_cards_in_deck - 3 - n_players) / 52 \
+        #          / (n_cards_in_deck - 3 - n_players - distance_from_dealers_left)
+        #     p_card += p_card_drawn
+        # elif stage == 'turn':
+        #     p_card = p_card_in_deck \
+        #         / (n_cards_in_deck - distance_from_dealers_left)
+        #     p_card_drawn = (n_cards_in_deck - n_players) / 52 \
+        #         / (n_cards_in_deck - n_players - distance_from_dealers_left)
+        #     p_card += p_card_drawn
+        # elif stage == 'river':
+        #     p_card = p_card_in_deck \
+        #         / (n_cards_in_deck - distance_from_dealers_left)
+        # else:
+        #     raise ValueError('Stage %s not recognised' % stage)
 
         # Run checks to see what hands are currently present
         # High card
@@ -154,14 +192,10 @@ class Player:
                                 + aces_low_hand['value'].tolist())
             for straight in possible_straights:
                 p_this_straight = np.prod(np.array(
-                    [1 if card in present_cards else 4 * p_card
-                     for card in straight]
+                    [1 if card in present_cards else
+                     1 - ((48 / 52) ** n_draws_remaining) for card in straight]
                 ))
                 p_straight += p_this_straight
-            # Straight could occur in other five cards
-            if n_draws_remaining >= 5:
-                # TODO work this out (probably insignificant)
-                p_straight += 0
             self.hand_score.loc['Straight', 'probability_of_occurring'] = \
                 p_straight
 
@@ -175,15 +209,20 @@ class Player:
         else:
             p_flush = 0
             if n_draws_remaining >= 4:
-                p_flush += sum(suit_counts == 1) * ((13 * p_card) / 52) ** 4
-                p_flush += sum(suit_counts == 2) * ((13 * p_card) / 52) ** 3
-                p_flush += sum(suit_counts == 3) * ((13 * p_card) / 52) ** 2
-                p_flush += sum(suit_counts == 4) * ((13 * p_card) / 52)
+                p_flush += sum(suit_counts == 1) \
+                    * ((39 / 52) ** n_draws_remaining) ** (5 - 1)
+                p_flush += sum(suit_counts == 2) \
+                    * ((39 / 52) ** n_draws_remaining) ** (5 - 2)
+                p_flush += sum(suit_counts == 3) \
+                    * ((39 / 52) ** n_draws_remaining) ** (5 - 3)
             elif n_draws_remaining == 2:
-                p_flush += sum(suit_counts == 3) * ((13 * p_card) / 52) ** 2
-                p_flush += sum(suit_counts == 4) * ((13 * p_card) / 52)
+                p_flush += sum(suit_counts == 3) \
+                    * ((39 / 52) ** n_draws_remaining) ** (5 - 3)
+                p_flush += sum(suit_counts == 4) \
+                    * ((39 / 52) ** n_draws_remaining) ** (5 - 4)
             elif n_draws_remaining == 1:
-                p_flush += sum(suit_counts == 4) * ((13 * p_card) / 52)
+                p_flush += sum(suit_counts == 4) \
+                    * ((39 / 52) ** n_draws_remaining) ** (5 - 4)
             self.hand_score.loc['Flush', 'probability_of_occurring'] = \
                 p_flush
 
@@ -197,13 +236,22 @@ class Player:
             self.hand_score.loc['Full house', 'high_card'] = \
                 triple_value + double_value / 100
         else:
-            # Same as three of a kind
-            p_full_house = 3 * p_card * 2 * p_card * sum(value_counts==1)
-            p_full_house += 2 * sum(value_counts==2) * p_card
-
-            # Prob of a pair in the remaining cards
-            # TODO
-            p_full_house = p_full_house * p_card_drawn
+            # Loop through all full houses and sum probabilities of
+            # each one occurring
+            p_full_house = 0
+            present_values = self.hand['value'].values.tolist()
+            for full_house in possible_full_houses:
+                p_this_full_house = []
+                for card in full_house:
+                    if card in present_values:
+                        p_this_full_house.append(1)
+                        present_values.remove(card)
+                    else:
+                        p_this_full_house.append(
+                            1 - ((48 / 52) ** n_draws_remaining)
+                        )
+                p_this_full_house = np.prod(np.array(p_this_full_house))
+                p_full_house += p_this_full_house
 
             self.hand_score.loc['Full house', 'probability_of_occurring'] = \
                 p_full_house

@@ -59,8 +59,12 @@ values = {
     14: 'Ace'
 }
 
-# Possible straights for the probability of a straight calc
+# Possible straights for the probability calc
 possible_straights = [arange(i, i + 5) for i in range(1, 11)]
+
+# Possible full houses for the probability calc
+possible_full_houses = [[i, i, i, j, j] for i in range(2, 14)
+                        for j in range(2, 14) if i != j]
 
 
 def get_card_name(card):
