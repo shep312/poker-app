@@ -54,7 +54,6 @@ class Player:
         # I.E. Not in another player's hand
         p_card_in_deck = n_cards_in_deck / 52
 
-
         # Turn this probability into the probability that any given card
         # will be drawn during the remainder of the game.
         p_card = n_draws_remaining / 52
@@ -108,13 +107,15 @@ class Player:
             # For each single card, there should be 3 others out there with
             # its value. 
             n_potential_cards = 3 * sum(value_counts == 1)
-            p_pair = n_potential_cards * p_card
+            p_pair = 1 - ((52 - n_potential_cards) / 52) ** n_draws_remaining
             # Also the chance that any of the future cards could
-            # be pairs. Each number has a raw prob of 4/52. This needs to be 
-            # reduced to reflect that not all cards remain (multiply by p_card),
-            # then it needs to happen twice.
-            if n_draws_remaining >= 2:
-                p_pair += (p_card * 4 / 52)**2 
+            # be pairs. Each number has a raw prob of 4/52 and we have a number
+            # of draws to get it. This is easier expressed as 1 - probability
+            # of the sequence of this not happening
+            if n_draws_remaining == 2:
+                p_pair += 1 - (1 * (49 / 52))
+            elif n_draws_remaining == 5:
+                p_pair += 1 - (1 * (49 / 52) * (48 / 51) * (47 / 50) * (46 / 49))
             self.hand_score.loc['Pair', 'probability_of_occurring'] = p_pair
 
         # Two pair
@@ -126,14 +127,19 @@ class Player:
             # If there is already a pair, then the probability of another pair
             # given the remaining singles. 
             if sum(value_counts == 2) == 1:
-                p_two_pair = 3 * sum(value_counts == 1) * p_card
+                n_potential_cards = 3 * sum(value_counts == 1)
+                p_two_pair = \
+                    1 - ((52 - n_potential_cards) / 52) ** n_draws_remaining
             # If not, the probability of any one of our singles becoming
             # a pair up to a max of 2 pairs
             else:
-                p_two_pair = (3 * p_card)**max(sum(value_counts == 1), 2)
+                n_potential_cards = 3 * sum(value_counts == 1)
+                p_two_pair = \
+                    (1 - (((52 - n_potential_cards) / 52) ** n_draws_remaining)) \
+                    ** 2
             # If two pairs appear outside the current hand
             if n_draws_remaining >= 4:
-                p_two_pair += 4 * p_card * 3 * p_card
+                p_two_pair += (1 - ((48 / 52) ** (n_draws_remaining - 2))) ** 2
             self.hand_score.loc['Two pairs', 'probability_of_occurring'] = \
                 p_two_pair
 
@@ -146,11 +152,26 @@ class Player:
             # For the single cards, need the probability of getting one of 
             # 3 cards followed by the probability of one of 2 cards.
             # For the double cards, one of 2 just once
-            p_three = 3 * p_card * 2 * p_card * sum(value_counts==1)
-            p_three += 2 * sum(value_counts==2) * p_card
-            # Also the prob of one happening with future , unconnected cards
-            if n_draws_remaining >= 3:
-                p_three += (p_card * 4 / 52)**3 
+            p_three = \
+                (1 - (
+                    ((52 - 3 * sum(value_counts == 1)) / 52) ** n_draws_remaining
+                )) \
+                * (1 - (
+                    ((52 - 2 * sum(value_counts == 1)) / 52) ** n_draws_remaining
+                ))
+            p_three += \
+                (1 - (
+                        ((52 - 2 * sum(value_counts == 2)) / 52) ** n_draws_remaining
+                ))
+            # Also the prob of one happening with future, unconnected cards
+            if n_draws_remaining == 5:
+                p_three += 1 - (
+                    1 * (49 / 52) * (48 / 51) * (47 / 50) * (46 / 49)
+                    + 1 * (3 / 52) * (49 / 51) * (48 / 50) * (47 / 49)
+                    + 1 * (49 / 52) * (3 / 51) * (48 / 50) * (47 / 49)
+                    + 1 * (49 / 52) * (48 / 51) * (3 / 50) * (47 / 49)
+                    + 1 * (49 / 52) * (48 / 51) * (47 / 50) * (3 / 49)
+                )
             self.hand_score.loc['Three of a kind', 'probability_of_occurring'] \
                 = p_three
 
@@ -238,20 +259,22 @@ class Player:
         else:
             # Loop through all full houses and sum probabilities of
             # each one occurring
-            p_full_house = 0
+            p_of_not_each_house = []
             present_values = self.hand['value'].values.tolist()
             for full_house in possible_full_houses:
-                p_this_full_house = []
+                p_each_card = []
                 for card in full_house:
                     if card in present_values:
-                        p_this_full_house.append(1)
+                        p_each_card.append(1)
                         present_values.remove(card)
                     else:
-                        p_this_full_house.append(
-                            1 - ((48 / 52) ** n_draws_remaining)
+                        n_potential_cards = 4 - sum(self.hand['value'] == card)
+                        p_each_card.append(
+                            1 - (((52 - n_potential_cards) / 52) ** n_draws_remaining)
                         )
-                p_this_full_house = np.prod(np.array(p_this_full_house))
-                p_full_house += p_this_full_house
+                p_dont_get_cards = [1 - prob for prob in p_each_card]
+                p_of_not_each_house.append(np.prod(np.array(p_dont_get_cards)))
+            p_full_house = 1 - np.prod(np.array(p_of_not_each_house))
 
             self.hand_score.loc['Full house', 'probability_of_occurring'] = \
                 p_full_house
@@ -268,12 +291,20 @@ class Player:
             # followed by the probability of one of 1 cards.
             # For the double cards, one of 2 just once.
             # For the tripe cards, one of just 1 once.
-            p_four = 3 * p_card * 2 * p_card * p_card * sum(value_counts==1)
-            p_four += 2 * p_card * sum(value_counts==2)
-            p_four += p_card * sum(value_counts == 3)
+            n_potential_cards = 3 * sum(value_counts == 1)
+            p_four = \
+                (1 - (((52 - n_potential_cards) / 52) ** n_draws_remaining)) \
+                ** 3
+            n_potential_cards = 2 * sum(value_counts == 2)
+            p_four += \
+                (1 - (((52 - n_potential_cards) / 52) ** n_draws_remaining)) \
+                ** 2
+            n_potential_cards = sum(value_counts == 3)
+            p_four += \
+                (1 - (((52 - n_potential_cards) / 52) ** n_draws_remaining))
             # Also the prob of one happening with future, unconnected cards
             if n_draws_remaining >= 4:
-                p_four += (p_card * 4 / 52) ** 4
+                p_four += 1 - ((48 / 52) ** (n_draws_remaining - 4))
             self.hand_score.loc['Four of a kind', 'probability_of_occurring'] \
                 = p_four
 
