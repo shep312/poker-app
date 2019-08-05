@@ -1,4 +1,4 @@
-from numpy import arange
+from numpy import arange, array
 
 
 # Define the possible hands and their ranks
@@ -61,6 +61,7 @@ values = {
 
 # Possible straights for the probability calc
 possible_straights = [arange(i, i + 5) for i in range(1, 11)]
+possible_straights.append(array([14, 2, 3, 4, 5]))
 
 # Possible full houses for the probability calc
 possible_full_houses = [[i, i, i, j, j] for i in range(2, 14)

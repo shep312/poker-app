@@ -35,7 +35,6 @@ class Player:
              n_players (int): Number of players in game
              deck (list): Cards remaining in the deck
         """
-        global p_shared_three
         assert isinstance(n_players, int), 'n_players must be a integer'
         assert self.hand.shape[0] <= 7, 'player has more than 7 cards'
         assert not any(self.hand.duplicated()), 'player has duplicate cards'
@@ -109,18 +108,18 @@ class Player:
         else:
             # For each single card, there should be 3 others out there with
             # its value. 
-            n_potential_cards = 3 * sum(value_counts == 1)
             # p = 1 - probability we don't draw any of these cards in the
             # remaining draws
-            p_own_pair = 1 - \
-                ((n_cards_unknown - n_potential_cards) / n_cards_unknown) \
-                ** n_draws_remaining
+            sequence = [(n_cards_unknown - 3 - i) / (n_cards_unknown - i)
+                        for i in range(n_draws_remaining)]
+            p_specific_pair = 1 - np.prod(np.array(sequence))
+            p_own_pair = sum(value_counts == 1) * p_specific_pair
             # Also the chance that any of the future cards could
             # be pairs. Easier to express as the sequence of it not happening
             # Sequence: draw a card (1), draw a card of different value,
             # draw a card of different value again...
             if n_draws_remaining >= 2:
-                sequence = [1] + [(n_cards_unknown - 3 - i) / n_cards_unknown
+                sequence = [1] + [(n_cards_unknown - 3 - i) / (n_cards_unknown - i)
                                   for i in range(n_draws_remaining - 1)]
                 p_shared_pair = 1 - np.prod(np.array(sequence))
             else:
@@ -129,7 +128,7 @@ class Player:
             self.hand_score.loc['Pair', 'probability_of_occurring'] = p_pair
 
         # Two pair
-        if sum(value_counts == 2) == 2:
+        if sum(value_counts == 2) >= 2:
             self._add_hand_to_player('Two pairs')
             self.hand_score.loc['Two pairs', 'high_card'] = \
                 value_counts[value_counts == 2].idxmax()
@@ -137,10 +136,19 @@ class Player:
             # If there is already a pair, then the probability of another pair
             # given the remaining singles. 
             if sum(value_counts == 2) == 1:
-                n_potential_cards = 3 * sum(value_counts == 1)
-                p_two_pair_inc_pairs = 1 - \
-                    ((n_cards_unknown - n_potential_cards) / n_cards_unknown) \
-                    ** n_draws_remaining
+                if any(value_counts == 1):
+                    n_potential_cards = 3 * sum(value_counts == 1)
+                    p_two_pair_inc_pairs = 1 - \
+                        ((n_cards_unknown - n_potential_cards) / n_cards_unknown) \
+                        ** n_draws_remaining
+                else:
+                    if n_draws_remaining >= 2:
+                        sequence = [1] + [(n_cards_unknown - 3 - i) / (n_cards_unknown - i)
+                                          for i in range(n_draws_remaining - 1)]
+                        p_shared_pair = 1 - np.prod(np.array(sequence))
+                    else:
+                        p_shared_pair = 0
+                    p_two_pair_inc_pairs = p_shared_pair
             else:
                 p_two_pair_inc_pairs = 0
             # If not, the probability of any one of our singles becoming
@@ -174,12 +182,15 @@ class Player:
             # For the single cards, need the probability of getting one of 
             # 3 cards followed by the probability of one of 2 cards.
             # For the double cards, one of 2 just once
+            n_potential_cards = 3 * sum(value_counts == 2)
             p_own_three_from_one = \
                 (1 - (
-                    ((n_cards_unknown - 3 * sum(value_counts == 1)) / n_cards_unknown) ** n_draws_remaining
+                    ((n_cards_unknown - 3)
+                     / n_cards_unknown) ** n_draws_remaining
                 )) \
                 * (1 - (
-                    ((n_cards_unknown - 2 * sum(value_counts == 1)) / n_cards_unknown) ** n_draws_remaining
+                    ((n_cards_unknown - 2 * sum(value_counts == 1))
+                     / n_cards_unknown) ** (n_draws_remaining - 1)
                 ))
             # Prob of an existing pair becoming three
             n_potential_cards = 2 * sum(value_counts == 2)
@@ -188,6 +199,8 @@ class Player:
                  ** n_draws_remaining
             # Also the prob of one happening with future, unconnected cards
             if n_draws_remaining == 5:
+                # Each of these sequences is mutually exclusive, so I
+                # can add the probabilities
                 p_shared_three = 1 - (
                         1 * (49 / 52) * (48 / 51) * (47 / 50) * (46 / 49)
                         + 1 * (3 / 52) * (49 / 51) * (48 / 50) * (47 / 49)
@@ -238,15 +251,16 @@ class Player:
             # Import a list of all the possible straights, then check the
             # probability of each one given the cards we have. Sum those
             # probabilities for the probability of any straight.
-            p_straight = 0
-            present_cards = set(aces_high_hand['value'].tolist()
-                                + aces_low_hand['value'].tolist())
+            straight_non_probs = []
+            present_cards = set(self.hand['value'].tolist())
             for straight in possible_straights:
                 p_this_straight = np.prod(np.array(
                     [1 if card in present_cards else
-                     1 - ((48 / 52) ** n_draws_remaining) for card in straight]
+                     1 - (((n_cards_unknown - 4) / n_cards_unknown) ** n_draws_remaining)
+                     for card in straight]
                 ))
-                p_straight += p_this_straight
+                straight_non_probs.append(1 - p_this_straight)
+            p_straight = 1 - np.prod(np.array(straight_non_probs))
             self.hand_score.loc['Straight', 'probability_of_occurring'] = \
                 p_straight
 

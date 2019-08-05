@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 from random import shuffle
 from poker.actors import User, Opponent, Player
-from poker.utils import get_card_name
+from poker.utils import get_card_name, suits, values
 
 
 class Game:
@@ -34,9 +34,9 @@ class Game:
         self.shuffle_deck()
 
     def shuffle_deck(self):
-        suits = (0, 1, 2, 3)
-        values = (2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14)
-        self.deck = [[suit, val] for val in values for suit in suits]
+        value_names = list(values.keys())
+        suit_names = list(suits.keys())
+        self.deck = [[suit, val] for val in value_names for suit in suit_names]
         shuffle(self.deck)
 
     def rotate_dealer(self):
