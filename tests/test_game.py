@@ -1,5 +1,5 @@
-from poker.game import Game
 import numpy as np
+from poker.game import Game
 
 
 def test_init():
