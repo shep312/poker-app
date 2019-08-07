@@ -35,7 +35,7 @@ draws_remaining_at_stage = {
 }
 
 # Encoded card suits
-suits = {
+SUITS = {
     0: 'Spades',
     1: 'Diamonds',
     2: 'Hearts',
@@ -43,7 +43,7 @@ suits = {
 }
 
 # Encoded card values
-values = {
+VALUES = {
     2: '2',
     3: '3',
     4: '4',
@@ -80,4 +80,4 @@ def get_card_name(card):
     Returns:
         A string describing the hand in English
     """
-    return '{} of {}'.format(values[card[1]], suits[card[0]])
+    return '{} of {}'.format(VALUES[card[1]], SUITS[card[0]])

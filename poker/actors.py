@@ -1,8 +1,8 @@
 import pandas as pd
 import numpy as np
 from poker.utils import poker_hands_rank, stage_names, \
-    draws_remaining_at_stage, possible_straights, suits, possible_full_houses
-from typing import Any
+    draws_remaining_at_stage, possible_straights, SUITS, VALUES, \
+    possible_full_houses
 
 
 class Player:
@@ -156,6 +156,7 @@ class Player:
                     p_two_pair_inc_pairs = p_shared_pair
             else:
                 p_two_pair_inc_pairs = 0
+
             # If not, the probability of any one of our singles becoming
             # a pair up to a max of 2 pairs
             n_single_cards_in_hand = sum(value_counts == 1)
@@ -285,18 +286,37 @@ class Player:
                 p_own_three_from_pair = 0
 
             # Also the prob of one happening with future, unconnected cards
-            if n_draws_remaining == 5:
-                # Each of these sequences is mutually exclusive, so I
-                # can add the probabilities
-                p_shared_three = 1 - (
-                        1 * (49 / 52) * (48 / 51) * (47 / 50) * (46 / 49)
-                        + 1 * (3 / 52) * (49 / 51) * (48 / 50) * (47 / 49)
-                        + 1 * (49 / 52) * (3 / 51) * (48 / 50) * (47 / 49)
-                        + 1 * (49 / 52) * (48 / 51) * (3 / 50) * (47 / 49)
-                        + 1 * (49 / 52) * (48 / 51) * (47 / 50) * (3 / 49)
-                )
+            if n_draws_remaining >= 3:
+
+                # Sequences with only one match or no matches
+                sequences = np.zeros([n_draws_remaining, n_draws_remaining])
+                for i in range(sequences.shape[0]):
+                    # Give every option the probability of no pair this draw
+                    for j in range(1, sequences.shape[1]):
+                        if i + 1 == j:
+                            # For one draw per sequence, throw in a match draw
+                            sequences[i, j] = 3 / (n_cards_unknown - j)
+                        elif j <= i + 1:
+                            # If we're pre-first match, 3 cards to avoid
+                            sequences[i, j] = (n_cards_unknown - 3 - j) \
+                                              / (n_cards_unknown - j)
+                        else:
+                            # If we're post, only 2 cards to avoid
+                            sequences[i, j] = (n_cards_unknown - 2 - j) \
+                                              / (n_cards_unknown - j)
+
+                    # Since were not fussed which pair, set the first p of
+                    # every sequence to be 1
+                    sequences[i, 0] = 1
+
+                # Account for fact this could occur for any of the values
+                # we don't have
+                p_not_shared_three = sequences.prod(axis=1).sum()
+                p_shared_three = 1 - p_not_shared_three
+
             else:
                 p_shared_three = 0
+
             p_three = 1 - (
                 (1 - p_own_three_from_one)
                 * (1 - p_own_three_from_pair)
@@ -338,16 +358,103 @@ class Player:
             # Import a list of all the possible straights, then check the
             # probability of each one given the cards we have. Sum those
             # probabilities for the probability of any straight.
-            straight_non_probs = []
+            straight_non_probs, straight_probs = [], []
             present_cards = set(self.hand['value'].tolist())
+
+            # Sequence required to not get any particular card needed
+            # for a straight
+            sequence = [(n_cards_unknown - 4 - i) / (n_cards_unknown - i)
+                        for i in range(n_draws_remaining)]
+            sequence = np.array(sequence)
+
+            # For each straight, get the probability of getting each card
+            # needed, which are independent events
             for straight in possible_straights:
-                p_this_straight = np.prod(np.array(
-                    [1 if card in present_cards else
-                     1 - (((n_cards_unknown - 4) / n_cards_unknown) ** n_draws_remaining)
-                     for card in straight]
-                ))
-                straight_non_probs.append(1 - p_this_straight)
-            p_straight = 1 - np.prod(np.array(straight_non_probs))
+
+                # How many cards do we not have that are needed to complete
+                # this straight
+                n_cards_needed = \
+                    sum([card not in present_cards for card in straight])
+
+                # Now need to add the probabilities of each of the options for
+                # not getting this straight
+
+                # The probability of not getting a single required card
+                sequence = [(n_cards_unknown - 4 - i) / (n_cards_unknown - i)
+                            for i in range(n_draws_remaining)]
+                p_no_needed_cards = np.prod(np.array(sequence))
+
+                # The probability of getting just one required card
+                # |   card   | not card | not card |
+                # |--------------------------------|
+                # | not card |   card   | not card |
+                # |--------------------------------|
+                # | not card | not card |   card   |
+                sequences = np.zeros([n_draws_remaining, n_draws_remaining])
+                for i in range(sequences.shape[0]):
+                    # Give every option the probability of no match this draw
+                    for j in range(sequences.shape[1]):
+                        sequences[i, j] = (n_cards_unknown - 4 - j) \
+                                          / (n_cards_unknown - j)
+                    # For one draw per sequence, throw in a match
+                    sequences[i, i] = 4 / (n_cards_unknown - i)
+                p_one_needed_card = sequences.prod(axis=1).sum()
+
+                # The probability of getting just two required cards
+                # |   card1  | card2 | not card1 and |
+                # |          |       | not card 2    |
+                # |--------------------------------|
+                # | not card |   card   | not card |
+                # |--------------------------------|
+                # | not card | not card |   card   |
+                sequences = np.zeros([n_draws_remaining, n_draws_remaining])
+                for i in range(sequences.shape[0]):
+                    # Give every option the probability of no match this draw
+                    for j in range(sequences.shape[1]):
+                        sequences[i, j] = (n_cards_unknown - 4 - j) \
+                                          / (n_cards_unknown - j)
+                    # For one draw per sequence, throw in a match
+                    sequences[i, i] = 4 / (n_cards_unknown - i)
+                p_two_needed_cards = sequences.prod(axis=1).sum()
+
+                # Different probability calculations depending on how many cards
+                # needed to complete the straight
+                if n_cards_needed > n_draws_remaining:
+                    p_not_this_straight = 1
+
+                elif n_cards_needed == 1:
+                    p_not_this_straight = p_no_needed_cards
+
+                elif n_cards_needed == 2:
+                    p_not_this_straight = \
+                        p_no_needed_cards + p_one_needed_card
+
+                elif n_cards_needed == 3:
+                    pass
+
+                elif n_cards_needed == 4:
+                    pass
+
+                elif n_cards_needed == 5:
+                    pass
+
+                else:
+                    raise ValueError('Unacceptable number of cards needed'
+                                     'for straight: %s' % str(n_cards_needed))
+
+
+
+                # p_each_card_in_straight = [1 if card in present_cards
+                #                            else 1 - np.prod(sequence)
+                #                            for card in straight]
+                # p_this_straight = np.prod(np.array(p_each_card_in_straight))
+                # # Record array of probabilities of not getting each straight
+                # straight_non_probs.append(1 - p_this_straight)
+                straight_probs.append(1 - 5)
+
+            # How to convert these into a single probability? Some straights
+            # Are mutually exclusive and some aren't...
+            p_straight = sum(straight_probs)
             self.hand_score.loc['Straight', 'probability_of_occurring'] = \
                 p_straight
 
@@ -476,7 +583,7 @@ class Player:
         else:
             p_aces_high_sf = 0
             for straight in possible_straights:
-                for suit in suits.keys():
+                for suit in SUITS.keys():
                     suited_cards = \
                         aces_high_hand[aces_high_hand['suit'] == suit]
                     p_aces_high_sf += np.prod(np.array(
@@ -485,7 +592,7 @@ class Player:
                     ))
 
             p_royal_flush = 0
-            for suit in suits.keys():
+            for suit in SUITS.keys():
                 suited_cards = \
                     aces_high_hand[aces_high_hand['suit'] == suit]
                 p_royal_flush += np.prod(np.array(
@@ -495,7 +602,7 @@ class Player:
 
             p_aces_low_sf = 0
             for straight in possible_straights:
-                for suit in suits.keys():
+                for suit in SUITS.keys():
                     suited_cards = \
                         aces_low_hand[aces_low_hand['suit'] == suit]
                     p_aces_low_sf += np.prod(np.array(

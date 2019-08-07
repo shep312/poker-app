@@ -1,8 +1,8 @@
 import numpy as np
 import pandas as pd
 from random import shuffle
-from poker.actors import User, Opponent, Player
-from poker.utils import get_card_name, suits, values
+from poker.actors import User, Opponent
+from poker.utils import get_card_name, SUITS, VALUES
 
 
 class Game:
@@ -34,8 +34,8 @@ class Game:
         self.shuffle_deck()
 
     def shuffle_deck(self):
-        value_names = list(values.keys())
-        suit_names = list(suits.keys())
+        value_names = list(VALUES.keys())
+        suit_names = list(SUITS.keys())
         self.deck = [[suit, val] for val in value_names for suit in suit_names]
         shuffle(self.deck)
 
