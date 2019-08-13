@@ -521,11 +521,6 @@ class Player:
                     p_no_needed_cards = np.prod(np.array(sequence))
 
                     # The probability of getting just one required card
-                    # |   card   | not card | not card |
-                    # |--------------------------------|
-                    # | not card |   card   | not card |
-                    # |--------------------------------|
-                    # | not card | not card |   card   |
                     sequences = np.zeros([n_draws_remaining, n_draws_remaining])
                     for i in range(sequences.shape[0]):
                         # Give every option the probability of no match this draw
@@ -540,19 +535,31 @@ class Player:
                     sequences = []
                     for k in range(n_draws_remaining):
                         tmp_sequence = np.zeros([n_draws_remaining - 1, n_draws_remaining])
+                        tmp_sequence_bol = np.zeros([n_draws_remaining - 1, n_draws_remaining], dtype=bool)
                         for i in range(tmp_sequence.shape[0]):
-                            # Give every option the probability of no match this draw
-                            for j in range(tmp_sequence.shape[1]):
-                                tmp_sequence[i, j] = (n_cards_unknown - n_suits_left - j) \
-                                                  / (n_cards_unknown - j)
                             # For one draw per sequence, throw in a match
                             tmp_sequence[i, k] = n_suits_left / (n_cards_unknown - k)
+                            tmp_sequence_bol[i, k] = True
 
                         for j in range(tmp_sequence.shape[1] - 1):
                             if j < k:
                                 tmp_sequence[j, j] = n_suits_left / (n_cards_unknown - j)
+                                tmp_sequence_bol[j, j] = True
+                                # Correct the original match to reflect it came after
+                                # this match
+                                tmp_sequence[j, k] = (n_suits_left - 1) / (n_cards_unknown - k)
+                                tmp_sequence_bol[j, k] = True
                             else:
                                 tmp_sequence[j, j + 1] = (n_suits_left - 1) / (n_cards_unknown - j - 1)
+                                tmp_sequence_bol[j, j + 1] = True
+
+                        for i in range(tmp_sequence.shape[0]):
+                            for j in range(tmp_sequence.shape[1]):
+                                # If not a match
+                                if not tmp_sequence_bol[i, j]:
+                                    suits_to_remove = sum(tmp_sequence_bol[i, :j])
+                                    tmp_sequence[i, j] = (n_cards_unknown - (n_suits_left - suits_to_remove) - j) \
+                                                         / (n_cards_unknown - j)
 
                         sequences.append(tmp_sequence)
                     two_sequences = pd.DataFrame(np.concatenate(sequences))\
@@ -563,21 +570,26 @@ class Player:
                     sequences = []
                     for k in range(n_draws_remaining):
                         tmp_sequence = np.zeros([n_draws_remaining - 1, n_draws_remaining])
+                        tmp_sequence_bol = np.ones([n_draws_remaining - 1, n_draws_remaining], dtype=bool)
                         for i in range(tmp_sequence.shape[0]):
-                            # Give every option the probability of a match this draw
-                            for j in range(tmp_sequence.shape[1]):
-                                tmp_sequence[i, j] = n_suits_left / (n_cards_unknown - j)
-                            # For one draw per sequence, throw in not a match
-                            tmp_sequence[i, k] = (n_cards_unknown - n_suits_left - k) \
-                                                  / (n_cards_unknown - k)
+                            # For one draw per sequence, throw in a non-match
+                            tmp_sequence_bol[i, k] = False
 
                         for j in range(tmp_sequence.shape[1] - 1):
                             if j < k:
-                                tmp_sequence[j, j] = (n_cards_unknown - n_suits_left - j) \
-                                                  / (n_cards_unknown - j)
+                                tmp_sequence_bol[j, j] = False
                             else:
-                                tmp_sequence[j, j + 1] = (n_cards_unknown - n_suits_left - j) \
-                                                  / (n_cards_unknown - j - 1)
+                                tmp_sequence_bol[j, j + 1] = False
+
+                        for i in range(tmp_sequence.shape[0]):
+                            for j in range(tmp_sequence.shape[1]):
+                                suits_to_remove = sum(tmp_sequence_bol[i, :j])
+                                # If not a match
+                                if not tmp_sequence_bol[i, j]:
+                                    tmp_sequence[i, j] = (n_cards_unknown - (n_suits_left - suits_to_remove) - j) \
+                                                          / (n_cards_unknown - j)
+                                else:
+                                    tmp_sequence[i, j] = (n_suits_left - suits_to_remove) / (n_cards_unknown - j)
 
                         sequences.append(tmp_sequence)
                     three_sequences = pd.DataFrame(np.concatenate(sequences))\
@@ -589,10 +601,14 @@ class Player:
                     for i in range(sequences.shape[0]):
                         # Give every option the probability of no match this draw
                         for j in range(sequences.shape[1]):
-                            sequences[i, j] = n_suits_left / (n_cards_unknown - j)
-                        # For one draw per sequence, throw in a match
-                        sequences[i, i] = (n_cards_unknown - n_suits_left - i) \
-                                              / (n_cards_unknown - i)
+                            if j < i:
+                                sequences[i, j] = (n_suits_left - j) / (n_cards_unknown - j)
+                            elif j > i:
+                                sequences[i, j] = (n_suits_left - j + 1) / (n_cards_unknown - j)
+                            else:
+                                sequences[i, j] = (n_cards_unknown - n_suits_left - j) \
+                                              / (n_cards_unknown - j)
+
                     p_four_needed_card = sequences.prod(axis=1).sum()
 
                     if n_cards_needed == 1:
@@ -624,7 +640,8 @@ class Player:
                     print(self.hand, suit, n_cards_needed, p_not_this_flush)
                     flush_non_probs.append(p_not_this_flush)
 
-                p_flush = 1 - np.array(flush_non_probs).prod()
+                # Can only get one flush at a time so take the most likely
+                p_flush = 1 - np.array(flush_non_probs).max()
                 self.hand_score.loc['Flush', 'probability_of_occurring'] = \
                     p_flush
 
