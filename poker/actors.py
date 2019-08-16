@@ -191,7 +191,6 @@ class Player:
             self.hand_score.loc['Full house', 'high_card'] = \
                 triple_value + double_value / 100
         else:
-
             self.hand_score.loc['Full house', 'probability_of_occurring'] = \
                 calculate_full_house_prob(self.hand, n_cards_unknown,
                                           n_draws_remaining)

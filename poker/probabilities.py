@@ -251,122 +251,13 @@ def calculate_straight_prob(hand, n_cards_unknown, n_draws):
         n_cards_needed = \
             sum([card not in present_cards for card in straight])
 
-        # Now need to add the probabilities of each of the options for
-        # not getting this straight
-
-        # The probability of not getting a single required card
-        sequence = [(n_cards_unknown - 4 - i) / (n_cards_unknown - i)
-                    for i in range(n_draws)]
-        p_no_needed_cards = np.prod(np.array(sequence))
-
-        # The probability of getting just one required card
-        # |   card   | not card | not card |
-        # |--------------------------------|
-        # | not card |   card   | not card |
-        # |--------------------------------|
-        # | not card | not card |   card   |
-        sequences = np.zeros([n_draws, n_draws])
-        for i in range(sequences.shape[0]):
-            # Give every option the probability of no match this draw
-            for j in range(sequences.shape[1]):
-                sequences[i, j] = (n_cards_unknown - 4 - j) \
-                                  / (n_cards_unknown - j)
-            # For one draw per sequence, throw in a match
-            sequences[i, i] = 4 / (n_cards_unknown - i)
-        p_one_needed_card = sequences.prod(axis=1).sum()
-
-        # The probability of getting just two required cards
-        sequences = []
-        for k in range(n_draws):
-            tmp_sequence = np.zeros([n_draws - 1, n_draws])
-            for i in range(tmp_sequence.shape[0]):
-                # Give every option the probability of no match this draw
-                for j in range(tmp_sequence.shape[1]):
-                    tmp_sequence[i, j] = (n_cards_unknown - 4 - j) \
-                                         / (n_cards_unknown - j)
-                # For one draw per sequence, throw in a match
-                tmp_sequence[i, k] = 4 / (n_cards_unknown - k)
-
-            for j in range(tmp_sequence.shape[1] - 1):
-                if j < k:
-                    tmp_sequence[j, j] = 4 / (n_cards_unknown - j)
-                else:
-                    tmp_sequence[j, j + 1] = 4 / (n_cards_unknown - j - 1)
-
-            sequences.append(tmp_sequence)
-        two_sequences = pd.DataFrame(np.concatenate(sequences)) \
-            .drop_duplicates().values
-        p_two_needed_cards = two_sequences.prod(axis=1).sum()
-
-        # The probability of getting just three required cards
-        sequences = []
-        for k in range(n_draws):
-            tmp_sequence = np.zeros([n_draws - 1, n_draws])
-            for i in range(tmp_sequence.shape[0]):
-                # Give every option the probability of a match this draw
-                for j in range(tmp_sequence.shape[1]):
-                    tmp_sequence[i, j] = 4 / (n_cards_unknown - j)
-                # For one draw per sequence, throw in not a match
-                tmp_sequence[i, k] = (n_cards_unknown - 4 - k) \
-                                     / (n_cards_unknown - k)
-
-            for j in range(tmp_sequence.shape[1] - 1):
-                if j < k:
-                    tmp_sequence[j, j] = (n_cards_unknown - 4 - j) \
-                                         / (n_cards_unknown - j)
-                else:
-                    tmp_sequence[j, j + 1] = (n_cards_unknown - 4 - j - 1) \
-                                             / (n_cards_unknown - j - 1)
-
-            sequences.append(tmp_sequence)
-        three_sequences = pd.DataFrame(np.concatenate(sequences)) \
-            .drop_duplicates().values
-        p_three_needed_cards = three_sequences.prod(axis=1).sum()
-
-        # The probability of getting four required cards
-        sequences = np.zeros([n_draws, n_draws])
-        for i in range(sequences.shape[0]):
-            # Give every option the probability of no match this draw
-            for j in range(sequences.shape[1]):
-                sequences[i, j] = 4 / (n_cards_unknown - j)
-            # For one draw per sequence, throw in a match
-            sequences[i, i] = (n_cards_unknown - 4 - i) \
-                              / (n_cards_unknown - i)
-        p_four_needed_card = sequences.prod(axis=1).sum()
-
-        # Different probability calculations depending on how many cards
-        # needed to complete the straight. Sum all the circumstances
-        # of this straight not happening
-        if n_cards_needed > n_draws:
-            p_not_this_straight = 1
-
-        elif n_cards_needed == 1:
-            p_not_this_straight = p_no_needed_cards
-
-        elif n_cards_needed == 2:
-            p_not_this_straight = \
-                p_no_needed_cards + p_one_needed_card
-
-        elif n_cards_needed == 3:
-            p_not_this_straight = \
-                p_no_needed_cards + p_one_needed_card \
-                + p_two_needed_cards
-
-        elif n_cards_needed == 4:
-            p_not_this_straight = \
-                p_no_needed_cards + p_one_needed_card \
-                + p_two_needed_cards + p_three_needed_cards
-
-        elif n_cards_needed == 5:
-            p_not_this_straight = \
-                p_no_needed_cards + p_one_needed_card \
-                + p_two_needed_cards + p_three_needed_cards \
-                + p_four_needed_card
-
-        else:
-            raise ValueError('Unacceptable number of cards needed'
-                             'for straight: %s' % str(n_cards_needed))
-        print(hand, straight, n_cards_needed, p_not_this_straight)
+        p_not_this_straight = sum_multiple_sequence_probabilities(
+            n_cards_unknown=n_cards_unknown,
+            n_cards_left=4,
+            n_draws=n_draws,
+            same_card_type=False,
+            n_cards_needed=n_cards_needed
+        )
         straight_non_probs.append(p_not_this_straight)
 
     # P(straight) is then 1 - P(no straights)
@@ -385,56 +276,13 @@ def calculate_flush_prob(hand, n_cards_unknown, n_draws):
             n_suits_left = 13 - n_suited
             n_cards_needed = 5 - n_suited
 
-            # The probability of not getting a single required card
-            sequence = [(n_cards_unknown - n_suits_left - i)
-                        / (n_cards_unknown - i)
-                        for i in range(n_draws)]
-            p_no_needed_cards = np.prod(np.array(sequence))
-
-            # The probability of getting just one required card
-            bol_sequences = get_boolean_sequence(1, n_draws)
-            one_sequences = apply_probability_to_sequence(
-                bol_sequences=bol_sequences,
+            p_not_this_flush = sum_multiple_sequence_probabilities(
                 n_cards_unknown=n_cards_unknown,
-                n_desired_cards=n_suits_left,
-                same_card_type=True
+                n_cards_left=n_suits_left,
+                n_draws=n_draws,
+                same_card_type=True,
+                n_cards_needed=n_cards_needed
             )
-            p_one_needed_card = one_sequences.prod(axis=1).sum()
-
-            # The probability of getting just two required cards
-            bol_sequences = get_boolean_sequence(2, n_draws)
-            two_sequences = apply_probability_to_sequence(
-                bol_sequences=bol_sequences,
-                n_cards_unknown=n_cards_unknown,
-                n_desired_cards=n_suits_left,
-                same_card_type=True
-            )
-            p_two_needed_cards = two_sequences.prod(axis=1).sum()
-
-            # The probability of getting just three required cards
-            bol_sequences = get_boolean_sequence(3, n_draws)
-            three_sequences = apply_probability_to_sequence(
-                bol_sequences=bol_sequences,
-                n_cards_unknown=n_cards_unknown,
-                n_desired_cards=n_suits_left,
-                same_card_type=True
-            )
-            p_three_needed_cards = three_sequences.prod(axis=1).sum()
-
-            # The probability of getting four required cards
-            bol_sequences = get_boolean_sequence(4, n_draws)
-            four_sequences = apply_probability_to_sequence(
-                bol_sequences=bol_sequences,
-                n_cards_unknown=n_cards_unknown,
-                n_desired_cards=n_suits_left,
-                same_card_type=True
-            )
-            p_four_needed_card = four_sequences.prod(axis=1).sum()
-
-            all_probs = [p_no_needed_cards, p_one_needed_card,
-                         p_two_needed_cards, p_three_needed_cards,
-                         p_four_needed_card]
-            p_not_this_flush = sum(all_probs[:n_cards_needed])
             flush_non_probs.append(p_not_this_flush)
 
         # Can only get one flush at a time so take the most likely
@@ -471,19 +319,28 @@ def calculate_full_house_prob(hand, n_cards_unknown, n_draws):
     p_of_not_each_house = []
     present_values = hand['value'].values.tolist()
     for full_house in possible_full_houses:
-        p_each_card = []
+
+        n_cards_needed = \
+            sum([card not in present_values for card in full_house])
+
+        n_cards_left = 0
         for card in full_house:
             if card in present_values:
-                p_each_card.append(1)
-                present_values.remove(card)
+                n_cards_left += 3
+                present_values.pop(card)
             else:
-                n_potential_cards = 4 - sum(self.hand['value'] == card)
-                p_each_card.append(
-                    1 - (((52 - n_potential_cards) / 52) ** n_draws)
-                )
-        p_dont_get_cards = [1 - prob for prob in p_each_card]
-        p_of_not_each_house.append(np.prod(np.array(p_dont_get_cards)))
-    p_full_house = 1 - np.prod(np.array(p_of_not_each_house))
+                n_cards_left += 4
+
+        p_not_this_full_house = sum_multiple_sequence_probabilities(
+            n_cards_unknown=n_cards_unknown,
+            n_cards_left=n_cards_left,
+            n_draws=n_draws,
+            same_card_type=True,
+            n_cards_needed=n_cards_needed
+        )
+
+        p_of_not_each_house.append(p_not_this_full_house)
+    p_full_house = 1 - np.array(p_of_not_each_house).prod()
     return p_full_house
 
 
@@ -618,3 +475,55 @@ def apply_probability_to_sequence(bol_sequences, n_cards_unknown,
                     / (n_cards_unknown - j)
 
     return sequences
+
+
+def sum_multiple_sequence_probabilities(n_cards_unknown, n_cards_left, n_draws,
+                                        same_card_type, n_cards_needed):
+    """
+    For complex sequences of probabilities (such as flushes and straights)
+    I need to get the probability of them occurring by summing the
+    probabilities of all the sequences of them not occurring.
+    This function looks to containerise these calculations
+
+    PARAMETERS
+    ----------
+    n_cards_unknown : int
+        Number of cards still in the deck or in opponents hands
+    n_cards_left : int
+        Number of cards remaining that are desired in this sequence
+    n_draws : int
+        Number of draws left in this round
+    same_card_type : bool
+        Whether drawing this card reduces its probability of reappearing
+        E.G. drawing a suit when looking for a flush would be true
+    n_cards_needed : int
+        How many desired cards would be needed
+
+    RETURNS
+    -------
+    p_desired_cards_not_drawn : int
+        Probability of all the sequences where we don't get n_cards_needed
+    """
+    # The probability of not getting a single required card
+    sequence = [(n_cards_unknown - n_cards_left - i)
+                / (n_cards_unknown - i)
+                for i in range(n_draws)]
+    p_no_needed_cards = np.prod(np.array(sequence))
+    all_probs = [p_no_needed_cards]
+
+    if n_cards_needed > 0:
+        for i in range(1, n_cards_needed):
+
+            # The probability of getting just one required card
+            bol_sequences = get_boolean_sequence(i, n_draws)
+            sequences = apply_probability_to_sequence(
+                bol_sequences=bol_sequences,
+                n_cards_unknown=n_cards_unknown,
+                n_desired_cards=n_cards_left,
+                same_card_type=same_card_type
+            )
+            p_this_many_cards = sequences.prod(axis=1).sum()
+            all_probs.append(p_this_many_cards)
+
+    p_desired_cards_not_drawn = sum(all_probs[:n_cards_needed])
+    return p_desired_cards_not_drawn
