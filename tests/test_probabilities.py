@@ -1,6 +1,46 @@
 import pytest
+from pandas import DataFrame
+from poker.utils import get_card_name, ncr
 from poker.probabilities import get_boolean_sequence, \
-    sum_multiple_sequence_probabilities
+    sum_multiple_sequence_probabilities, calculate_pair_prob
+
+
+def test_pair_prob():
+    hand = DataFrame({
+        'value': [1, 2],
+        'suit': [0, 0]
+    })
+    p = calculate_pair_prob(hand, 50, 1)
+    assert round(p, 5) == round(6 / 50, 5)
+
+    p = calculate_pair_prob(hand, 50, 2)
+    p_eq_1 = 1 - ((44 / 50) * (43 / 49))
+    p_eq_2 = (11 * ncr(4, 2) + 2 * ncr(3, 2)) / ncr(50, 2)
+    p_eq = 1 - ((1 - p_eq_1) * (1 - p_eq_2))
+    assert round(p, 5) == round(p_eq, 5)
+
+    hand = DataFrame({
+        'value': [1, 2, 3],
+        'suit': [0, 0, 0]
+    })
+    p = calculate_pair_prob(hand, 50, 1)
+    assert round(p, 5) == round(9 / 50, 5)
+
+
+def test_two_pair_prob():
+    hand = DataFrame({
+        'value': [1, 2, 2],
+        'suit': [0, 0, 0]
+    })
+    p = calculate_pair_prob(hand, 50, 1)
+    assert round(p, 5) == round(3 / 50, 5)
+
+    hand = DataFrame({
+        'value': [1, 2, 2, 3],
+        'suit': [0, 0, 0, 0]
+    })
+    p = calculate_pair_prob(hand, 50, 1)
+    assert round(p, 5) == round(6 / 50, 5)
 
 
 def test_get_boolean_sequence():

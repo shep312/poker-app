@@ -4,7 +4,7 @@ from numpy import arange, array
 
 
 # Define the possible hands and their ranks
-poker_hands_rank = {
+HANDS_RANK = {
     'High card': 0,
     'Pair': 1,
     'Two pairs': 2,
@@ -19,7 +19,7 @@ poker_hands_rank = {
 
 # Define the stage names during the game. Keys are the number of cards
 # a player has at that stage
-stage_names = {
+STAGE_NAMES = {
     0: 'not_started',
     2: 'hole',
     5: 'flop',
@@ -28,7 +28,7 @@ stage_names = {
 }
 
 # Draws remaining at a given stage
-draws_remaining_at_stage = {
+DRAWS_REMAINING_AT_STAGE = {
     'not_started': 7,
     'hole': 5,
     'flop': 2,

@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
-from poker.utils import poker_hands_rank, stage_names, \
-    draws_remaining_at_stage, possible_straights, SUITS, VALUES, \
+from poker.utils import HANDS_RANK, STAGE_NAMES, \
+    DRAWS_REMAINING_AT_STAGE, possible_straights, SUITS, VALUES, \
     possible_full_houses
 from poker.probabilities import calculate_pair_prob, calculate_two_pair_prob, \
     calculate_three_of_a_kind_prob, calculate_straight_prob, \
@@ -31,7 +31,7 @@ class Player:
         self.best_hand_high_card = 0
         self.best_hand_numeric = 0
 
-    def determine_hand(self, n_players, deck):
+    def determine_hand(self, n_players):
         """
         Determine what hands are present in a player's hand
         and therefore how strong it is
@@ -48,8 +48,8 @@ class Player:
         assert not any(self.hand.duplicated()), 'player has duplicate cards'
 
         # Determine how many card draws are left at this stage of the game
-        stage = stage_names.get(self.hand.shape[0])
-        n_draws_remaining = draws_remaining_at_stage[stage]  # type: int
+        stage = STAGE_NAMES.get(self.hand.shape[0])
+        n_draws_remaining = DRAWS_REMAINING_AT_STAGE[stage]  # type: int
 
         # Determine number of cards left in the deck and opponents hands
         # for probability calculations
@@ -211,7 +211,7 @@ class Player:
 
         # Pick out best hand
         # TODO pick out second best hands
-        present_hands = self.hand_score[self.hand_score['present'] == True]
+        present_hands = self.hand_score[self.hand_score['present']]
         self.best_hand = present_hands['hand_rank'].idxmax()
         self.best_hand_high_card = \
             present_hands.loc[self.best_hand, 'high_card']
