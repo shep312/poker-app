@@ -5,7 +5,9 @@ from poker.utils import poker_hands_rank, stage_names, \
     possible_full_houses
 from poker.probabilities import calculate_pair_prob, calculate_two_pair_prob, \
     calculate_three_of_a_kind_prob, calculate_straight_prob, \
-    calculate_flush_prob, calculate_flush_prob, calculate_full_house_prob
+    calculate_flush_prob, calculate_flush_prob, calculate_full_house_prob, \
+    calculate_four_of_a_kind_prob, calculate_royal_flush_prob, \
+    calculate_straight_flush_prob
 
 
 class Player:
@@ -49,52 +51,9 @@ class Player:
         stage = stage_names.get(self.hand.shape[0])
         n_draws_remaining = draws_remaining_at_stage[stage]  # type: int
 
-        # Distance from dealer's left
-        distance_from_dealers_left = self.table_position - 1
-        if distance_from_dealers_left == -1:
-            distance_from_dealers_left = n_players
-
-        # Determine number of cards left in the deck for probability calculations
-        n_cards_in_deck = len(deck)
+        # Determine number of cards left in the deck and opponents hands
+        # for probability calculations
         n_cards_unknown = 52 - self.hand.shape[0]
-
-        # Probability that a card is still in the deck at this stage
-        # I.E. Not in another player's hand
-        p_card_in_deck = n_cards_in_deck / 52
-
-        # Turn this probability into the probability that any given card
-        # will be drawn during the remainder of the game.
-        p_card = n_draws_remaining / 52
-
-        # Need to account
-        # for decreasing probability in the later stages of the game at the
-        # early stages due to other players picking up cards.
-        # Also need to account for the players position - dealer's left
-        # gets first cards etc.
-        # if stage == 'hole':
-        #     # 3 draws from the current deck at the flop
-        #     p_card = 3 * p_card_in_deck / n_cards_in_deck
-        #     # Following this, 3 cards fewer in the deck available for the
-        #     # turn. Also as many cards fewer as positions player is from the
-        #     # dealer
-        #     p_card += (n_cards_in_deck - 3) / 52 \
-        #         / (n_cards_in_deck - 3 - distance_from_dealers_left)
-        #     # Following this, 3 cards fewer in the deck from the flop,
-        #     # plus 1 * n_players fewer from the turn
-        #     p_card_drawn = (n_cards_in_deck - 3 - n_players) / 52 \
-        #          / (n_cards_in_deck - 3 - n_players - distance_from_dealers_left)
-        #     p_card += p_card_drawn
-        # elif stage == 'turn':
-        #     p_card = p_card_in_deck \
-        #         / (n_cards_in_deck - distance_from_dealers_left)
-        #     p_card_drawn = (n_cards_in_deck - n_players) / 52 \
-        #         / (n_cards_in_deck - n_players - distance_from_dealers_left)
-        #     p_card += p_card_drawn
-        # elif stage == 'river':
-        #     p_card = p_card_in_deck \
-        #         / (n_cards_in_deck - distance_from_dealers_left)
-        # else:
-        #     raise ValueError('Stage %s not recognised' % stage)
 
         # Run checks to see what hands are currently present
         # High card
@@ -191,6 +150,7 @@ class Player:
             self.hand_score.loc['Full house', 'high_card'] = \
                 triple_value + double_value / 100
         else:
+            pass
             self.hand_score.loc['Full house', 'probability_of_occurring'] = \
                 calculate_full_house_prob(self.hand, n_cards_unknown,
                                           n_draws_remaining)
@@ -202,27 +162,9 @@ class Player:
             self.hand_score.loc['Four of a kind', 'high_card'] = \
                 value_counts[value_counts == 4].index.max()
         else:
-            # For the single cards, need the probability of getting one of
-            # 3 cards, followed by the probability of one of 2 cards,
-            # followed by the probability of one of 1 cards.
-            # For the double cards, one of 2 just once.
-            # For the tripe cards, one of just 1 once.
-            n_potential_cards = 3 * sum(value_counts == 1)
-            p_four = \
-                (1 - (((52 - n_potential_cards) / 52) ** n_draws_remaining)) \
-                ** 3
-            n_potential_cards = 2 * sum(value_counts == 2)
-            p_four += \
-                (1 - (((52 - n_potential_cards) / 52) ** n_draws_remaining)) \
-                ** 2
-            n_potential_cards = sum(value_counts == 3)
-            p_four += \
-                (1 - (((52 - n_potential_cards) / 52) ** n_draws_remaining))
-            # Also the prob of one happening with future, unconnected cards
-            if n_draws_remaining >= 4:
-                p_four += 1 - ((48 / 52) ** (n_draws_remaining - 4))
             self.hand_score.loc['Four of a kind', 'probability_of_occurring'] \
-                = p_four
+                = calculate_four_of_a_kind_prob(self.hand, n_cards_unknown,
+                                                n_draws_remaining)
 
         # Straight flush
         def check_straight_type(hand):
@@ -259,42 +201,16 @@ class Player:
                 self.hand_score.loc['Straight flush', 'high_card'] = \
                     self.hand_score.loc['Straight', 'high_card']
         else:
-            p_aces_high_sf = 0
-            for straight in possible_straights:
-                for suit in SUITS.keys():
-                    suited_cards = \
-                        aces_high_hand[aces_high_hand['suit'] == suit]
-                    p_aces_high_sf += np.prod(np.array(
-                        [1 if card in suited_cards['value'] else p_card
-                         for card in straight]
-                    ))
-
-            p_royal_flush = 0
-            for suit in SUITS.keys():
-                suited_cards = \
-                    aces_high_hand[aces_high_hand['suit'] == suit]
-                p_royal_flush += np.prod(np.array(
-                    [1 if card in suited_cards['value'] else p_card
-                     for card in [10, 11, 12, 13, 14]]
-                ))
-
-            p_aces_low_sf = 0
-            for straight in possible_straights:
-                for suit in SUITS.keys():
-                    suited_cards = \
-                        aces_low_hand[aces_low_hand['suit'] == suit]
-                    p_aces_low_sf += np.prod(np.array(
-                        [1 if card in suited_cards['value'] else p_card
-                         for card in straight]
-                    ))
-
             self.hand_score.loc['Royal flush', 'probability_of_occurring'] = \
-                p_royal_flush
+                calculate_royal_flush_prob(self.hand, n_cards_unknown,
+                                           n_draws_remaining)
 
             self.hand_score.loc['Straight flush', 'probability_of_occurring'] = \
-                p_aces_low_sf + p_aces_high_sf
+                calculate_straight_flush_prob(self.hand, n_cards_unknown,
+                                              n_draws_remaining)
 
         # Pick out best hand
+        # TODO pick out second best hands
         present_hands = self.hand_score[self.hand_score['present'] == True]
         self.best_hand = present_hands['hand_rank'].idxmax()
         self.best_hand_high_card = \

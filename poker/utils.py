@@ -1,3 +1,5 @@
+import operator as op
+from functools import reduce
 from numpy import arange, array
 
 
@@ -81,3 +83,10 @@ def get_card_name(card):
         A string describing the hand in English
     """
     return '{} of {}'.format(VALUES[card[1]], SUITS[card[0]])
+
+
+def ncr(n, r):
+    r = min(r, n-r)
+    numer = reduce(op.mul, range(n, n-r, -1), 1)
+    denom = reduce(op.mul, range(1, r+1), 1)
+    return numer / denom

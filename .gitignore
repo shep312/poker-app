@@ -1,6 +1,7 @@
+# Caches
 .idea/*
 .DS_Store
 .pytest_cache/*
-poker/__pycache__/*
-
+__pycache__/*
+*/__pycache__/*
 poker_app.egg-info
