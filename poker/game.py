@@ -1,5 +1,7 @@
 import numpy as np
 import pandas as pd
+from tqdm import tqdm
+from copy import deepcopy
 from random import shuffle
 from poker.actors import User, Opponent
 from poker.utils import get_card_name, SUITS, VALUES
@@ -66,6 +68,7 @@ class Game:
             player.hand = player.hole.copy()
         for player in self.players:
             player.determine_hand(n_players=self.n_players)
+        self.simulate()
 
     def deal_community(self, n_cards=1):
         for _ in range(n_cards):
@@ -76,6 +79,33 @@ class Game:
                 player.hand.reset_index(drop=True, inplace=True)
         for player in self.players:
             player.determine_hand(n_players=self.n_players)
+            
+    def simulate(self, n_samples=100):
+        card_frequencies = pd.DataFrame(
+            index=self.user.hand_score.index,
+            columns=['frequency'],
+            data=np.zeros([self.user.hand_score.shape[0], ])
+        )
+        if self.user.hand.shape[0] == 2:
+            print('Simulating outcomes...')
+            for i in tqdm(range(n_samples)):
+                sim_game = deepcopy(self)
+                shuffle(sim_game.deck)
+                sim_game.deal_community(n_cards=3)
+                sim_game.deal_community(n_cards=1)
+                sim_game.deal_community(n_cards=1)
+                card_frequencies['frequency'] \
+                    += sim_game.user.hand_score['present'].astype(int)
+                
+        elif self.user.hand.shape[0] == 5:
+            self.deal_community(n_cards=1)
+            self.deal_community(n_cards=1)
+            
+        elif self.user.hand.shape[0] == 6:
+            self.deal_community(n_cards=1)
+            
+        card_frequencies /= n_samples
+        self.user.hand_score['probability_of_occurring'] = card_frequencies
 
     def determine_winner(self):
         result = pd.DataFrame({

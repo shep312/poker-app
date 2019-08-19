@@ -47,53 +47,31 @@ class Player:
         assert self.hand.shape[0] <= 7, 'player has more than 7 cards'
         assert not any(self.hand.duplicated()), 'player has duplicate cards'
 
-        # Determine how many card draws are left at this stage of the game
-        stage = STAGE_NAMES.get(self.hand.shape[0])
-        n_draws_remaining = DRAWS_REMAINING_AT_STAGE[stage]  # type: int
-
-        # Determine number of cards left in the deck and opponents hands
-        # for probability calculations
-        n_cards_unknown = 52 - self.hand.shape[0]
-
         # Run checks to see what hands are currently present
         # High card
         if self.hand.shape[0]:
             self._add_hand_to_player('High card')
             self.hand_score.loc['High card', 'high_card'] = \
                 self.hand['value'].max()
-        else:
-            self.hand_score.loc['High card', 'probability_of_occurring'] = 1
-
+                
         # Pair
         value_counts = self.hand['value'].value_counts()
         if any(value_counts == 2):
             self._add_hand_to_player('Pair')
             self.hand_score.loc['Pair', 'high_card'] = \
                 value_counts[value_counts == 2].idxmax()
-        else:
-            self.hand_score.loc['Pair', 'probability_of_occurring'] = \
-                calculate_pair_prob(self.hand, n_cards_unknown, 
-                                    n_draws_remaining)
 
         # Two pair
         if sum(value_counts == 2) >= 2:
             self._add_hand_to_player('Two pairs')
             self.hand_score.loc['Two pairs', 'high_card'] = \
                 value_counts[value_counts == 2].idxmax()
-        else:
-            self.hand_score.loc['Two pairs', 'probability_of_occurring'] = \
-                calculate_two_pair_prob(self.hand, n_cards_unknown, 
-                                        n_draws_remaining)
 
         # Three of a kind
         if any(value_counts == 3):
             self._add_hand_to_player('Three of a kind')
             self.hand_score.loc['Three of a kind', 'high_card'] = \
                 value_counts[value_counts == 3].idxmax()
-        else:
-            self.hand_score.loc['Three of a kind', 'probability_of_occurring'] \
-                = calculate_three_of_a_kind_prob(self.hand, n_cards_unknown,
-                                                 n_draws_remaining)
 
         # Straight
         aces_high_hand = self.hand.copy()
@@ -123,10 +101,6 @@ class Player:
             self.hand_score.loc['Straight', 'high_card'] = \
                 aces_low_hand.loc[aces_low_hand['streak'] == 4, 'value'].values
             straight_type = 'aces_low'
-        else:
-            self.hand_score.loc['Straight', 'probability_of_occurring'] = \
-                calculate_straight_prob(self.hand, n_cards_unknown,
-                                        n_draws_remaining)
 
         # Flush
         suit_counts = self.hand['suit'].value_counts()
@@ -135,10 +109,6 @@ class Player:
             self._add_hand_to_player('Flush')
             self.hand_score.loc['Flush', 'high_card'] = \
                 self.hand.loc[self.hand['suit'] == flushed_suit, 'value'].max()
-        else:
-            self.hand_score.loc['Flush', 'probability_of_occurring'] = \
-                calculate_flush_prob(self.hand, n_cards_unknown,
-                                     n_draws_remaining)
 
         # Full house
         if any(value_counts == 2) and any(value_counts == 3):
@@ -149,11 +119,6 @@ class Player:
             # So 8s full of 3s would be 3.08
             self.hand_score.loc['Full house', 'high_card'] = \
                 triple_value + double_value / 100
-        else:
-            pass
-            self.hand_score.loc['Full house', 'probability_of_occurring'] = \
-                calculate_full_house_prob(self.hand, n_cards_unknown,
-                                          n_draws_remaining)
 
         # Four of a kind
         if any(value_counts == 4):
@@ -161,10 +126,6 @@ class Player:
             self.hand_score.loc['Four of a kind', 'probability_of_occurring'] = 1
             self.hand_score.loc['Four of a kind', 'high_card'] = \
                 value_counts[value_counts == 4].index.max()
-        else:
-            self.hand_score.loc['Four of a kind', 'probability_of_occurring'] \
-                = calculate_four_of_a_kind_prob(self.hand, n_cards_unknown,
-                                                n_draws_remaining)
 
         # Straight flush
         def check_straight_type(hand):
@@ -200,14 +161,6 @@ class Player:
                                     'probability_of_occurring'] = 1
                 self.hand_score.loc['Straight flush', 'high_card'] = \
                     self.hand_score.loc['Straight', 'high_card']
-        else:
-            self.hand_score.loc['Royal flush', 'probability_of_occurring'] = \
-                calculate_royal_flush_prob(self.hand, n_cards_unknown,
-                                           n_draws_remaining)
-
-            self.hand_score.loc['Straight flush', 'probability_of_occurring'] = \
-                calculate_straight_flush_prob(self.hand, n_cards_unknown,
-                                              n_draws_remaining)
 
         # Pick out best hand
         # TODO pick out second best hands
