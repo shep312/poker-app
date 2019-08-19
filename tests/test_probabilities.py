@@ -14,10 +14,10 @@ def test_pair_prob():
     assert round(p, 5) == round(6 / 50, 5)
 
     p = calculate_pair_prob(hand, 50, 2)
-    p_eq_1 = 1 - ((44 / 50) * (43 / 49))
-    p_eq_2 = (11 * ncr(4, 2) + 2 * ncr(3, 2)) / ncr(50, 2)
-    p_eq = 1 - ((1 - p_eq_1) * (1 - p_eq_2))
-    assert round(p, 5) == round(p_eq, 5)
+    assert round(p, 5) > round(6 / 50, 5)
+
+    assert calculate_pair_prob(hand, 45, 3) \
+        > calculate_pair_prob(hand, 50, 3)
 
     hand = DataFrame({
         'value': [1, 2, 3],

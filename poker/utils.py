@@ -75,18 +75,36 @@ def get_card_name(card):
     Convert the integer-based card into English.
     e.g. (0, 2) returns '2 of Spades'
 
-    Args:
-        card (tuple): tuple of two integers defining the suit and value
-                      respectively
+    PARAMETERS
+    ----------
+    card : tuple
+        tuple of two integers defining the suit and value respectively
 
-    Returns:
-        A string describing the hand in English
+    RETURNS
+    -------
+    A string describing the hand in English
     """
     return '{} of {}'.format(VALUES[card[1]], SUITS[card[0]])
 
 
 def ncr(n, r):
-    r = min(r, n-r)
-    numer = reduce(op.mul, range(n, n-r, -1), 1)
-    denom = reduce(op.mul, range(1, r+1), 1)
-    return numer / denom
+    """
+    Calculates the combination of a selection of items from a set
+    e.g. a selection of cards from a draw. Used a lot in probability
+    calculations
+
+    PARAMETERS
+    ----------
+    n : int
+        Number of total elements in the set (e.g. 52 cards in a deck)
+    r : int
+        Number of selections (e.g. 5 cards in a draw)
+
+    RETURNS
+    -------
+    The number of possible combinations
+    """
+    r = min(r, n - r)
+    numerator = reduce(op.mul, range(n, n - r, -1), 1)
+    denominator = reduce(op.mul, range(1, r + 1), 1)
+    return numerator / denominator

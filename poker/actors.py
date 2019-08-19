@@ -21,11 +21,11 @@ class Player:
         self.hole = pd.DataFrame(columns=['suit', 'value', 'name'])
         self.hand = pd.DataFrame(columns=['suit', 'value', 'name'])
         self.hand_score = pd.DataFrame({
-            'hand': list(poker_hands_rank.keys()),
-            'hand_rank': list(poker_hands_rank.values()),
-            'present': np.zeros([len(poker_hands_rank), ], dtype=bool),
-            'probability_of_occurring': np.zeros([len(poker_hands_rank), ]),
-            'high_card': np.zeros([len(poker_hands_rank), ], dtype=int)
+            'hand': list(HANDS_RANK.keys()),
+            'hand_rank': list(HANDS_RANK.values()),
+            'present': np.zeros([len(HANDS_RANK), ], dtype=bool),
+            'probability_of_occurring': np.zeros([len(HANDS_RANK), ]),
+            'high_card': np.zeros([len(HANDS_RANK), ], dtype=int)
         }).set_index('hand')
         self.best_hand = None
         self.best_hand_high_card = 0

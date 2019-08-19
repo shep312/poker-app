@@ -28,28 +28,52 @@ def prob_function(func):
 
 @prob_function
 def calculate_pair_prob(hand, n_cards_unknown, n_draws):
-    # For each single card, there should be 3 others out there with
-    # its value. To get the probability of getting any of these cards,
-    # first we get the probability of the sequence of not getting
-    # any. The probability of our own pair (requires at least one
-    # of our pocket cards) is then 1 - the sequence prob
+    """
+    Calculates the probability of getting a pair at any point during
+    this game
+
+    PARAMETERS
+    ----------
+    hand : pandas.Dataframe
+        Players hand as a dataframe detailing which hands are held
+    n_cards_unknown : int
+        Number of cards in deck and opponents hands
+    n_draws : int
+        Remaining draws left in game
+
+    RETURNS
+    -------
+    p_pair : float
+        Probability that this player will get a pair at some point in the
+        game
+    """
+
+    # Number of single cards in the hand currently gives the number
+    # of possible cards that when drawn create a pair
     value_counts = hand['value'].value_counts()
     n_single_cards_in_hand = sum(value_counts == 1)
-    n_cards_to_avoid = n_single_cards_in_hand * 3
-    sequence = [(n_cards_unknown - n_cards_to_avoid - i) 
-                / (n_cards_unknown - i) 
-                for i in range(n_draws)]
-    p_own_pair = 1 - np.prod(np.array(sequence))
-    # Also the chance that any of the future cards could
-    # be pairs. Again, easier to get sequence of it not happening
-    # Sequence: draw a card (1), draw a card of different value,
-    # draw a card of different value again...
+    n_desired_cards = n_single_cards_in_hand * 3
+
+    # All the potential draws left at this stage
+    all_options = ncr(n_cards_unknown, n_draws)
+
+    # The number of options where one of the current singles becomes a pair
+    pair_options = ncr(n_desired_cards, 1) \
+        * ncr(n_cards_unknown - n_desired_cards, n_draws - 1)
+    p_own_pair = pair_options / all_options
+
+    # Number of options of getting a pair without using a card in the current
+    # hand
     if n_draws >= 2:
-        sequence = [1] + [(n_cards_unknown - 3 - i) / (n_cards_unknown - i)
-                          for i in range(n_draws - 1)]
-        p_shared_pair = 1 - np.prod(np.array(sequence))
+        fresh_pair_options = ((13 - n_single_cards_in_hand) * ncr(4, 2)
+            * ncr(n_cards_unknown - 4, n_draws - 2)) \
+            + (n_single_cards_in_hand * ncr(3, 2)
+            * ncr(n_cards_unknown - 3, n_draws - 2))
+        p_shared_pair = fresh_pair_options / all_options
     else:
         p_shared_pair = 0
+
+    # Convert to a single probability
     p_pair = 1 - ((1 - p_own_pair) * (1 - p_shared_pair))
     return p_pair
 
@@ -59,6 +83,39 @@ def calculate_two_pair_prob(hand, n_cards_unknown, n_draws):
     # If there is already a pair, then the probability of another pair
     # given the remaining singles. 
     value_counts = hand['value'].value_counts()
+    all_options = ncr(n_cards_unknown, n_draws)
+
+    n_singles = sum(value_counts == 1)
+    n_pairs = sum(value_counts == 2)
+
+    if n_pairs == 1:
+        pass
+    else:
+
+
+        two_pair_options_fresh = \
+            (13 - n_singles) * ncr(4, 2) * (12 - n_singles) * ncr(4, 2) \
+            + ((n_draws - 4) / n_draws) * ncr(n_cards_unknown - 4, n_draws)
+
+        two_pair_options_off_singles = n_singles * ncr(3, 1) \
+            + ((n_draws - 2) / n_draws) * ncr(n_cards_unknown - 4, n_draws)
+
+        two_pair_options_off_one_single = \
+            (13 - n_singles) * ncr(4, 2) * ncr(3, 1) \
+            + ((n_draws - 3) / n_draws) * ncr(n_cards_unknown - 4, n_draws)
+
+    if sum(value_counts == 2) == 1:
+        if any(value_counts == 1):
+            n_cards_needed = 3 * sum(value_counts == 1)
+            options = ncr(n_cards_needed, 1) \
+                * ncr(n_cards_unknown - n_cards_needed, n_draws - 1)
+            p_two_pair_off_pair_and_singles = options / all_options
+        else:
+            p_two_pair_off_pair_and_singles = 0
+            options = 0
+
+
+
     if sum(value_counts == 2) == 1:
         if any(value_counts == 1):
             n_cards_to_avoid = 3 * sum(value_counts == 1)
@@ -198,7 +255,7 @@ def calculate_three_of_a_kind_prob(hand, n_cards_unknown, n_draws):
         # Combined probability that this happens for any of the single
         # cards - non mutually exclusive
         p_own_three_from_pair = 1 - \
-                                p_not_three_for_each_double ** sum(value_counts == 2)
+            p_not_three_for_each_double ** sum(value_counts == 2)
 
     else:
         p_own_three_from_pair = 0
