@@ -5,11 +5,21 @@ from poker.game import Game
 def test_init():
     n_players = 5
     game = Game(n_players)
-    assert len(game.deck) == 52, 'Too many cards to start'
     assert len(game.players) == n_players, 'Wrong number of players assigned'
 
     dealership = [player.is_dealer for player in game.players]
     assert sum(dealership) == 1, 'Should only be one dealer'
+
+
+def test_prepare_deck():
+    n_players = 5
+    game = Game(n_players)
+    assert len(game.deck) == 52, 'Too many cards to start'
+
+    ex_cards = [[1, 1], [3, 4], [2, 2]]
+    game.prepare_deck(excluded_cards=ex_cards)
+    assert len(game.deck) == (52 - len(ex_cards)), \
+        'Card exclusion when preparing deck not working'
 
 
 def test_deal_hole():

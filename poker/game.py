@@ -35,10 +35,13 @@ class Game:
 
         self.prepare_deck()
 
-    def prepare_deck(self):
+    def prepare_deck(self, excluded_cards=None):
         value_names = list(VALUES.keys())
         suit_names = list(SUITS.keys())
         self.deck = [[suit, val] for val in value_names for suit in suit_names]
+        if excluded_cards:
+            for card in excluded_cards:
+                self.deck.remove(card)
         shuffle(self.deck)
 
     def rotate_dealer(self):
@@ -61,14 +64,16 @@ class Game:
             self.community_cards.reset_index(drop=True, inplace=True)
         self.deck.remove(card)
 
-    def deal_hole(self):
-        for player in self.players:
+    def deal_hole(self, opponents_only=False):
+        recipients = self.opponents if opponents_only else self.players
+        for player in recipients:
+            if opponents_only:
+                player.hole = pd.DataFrame(columns=['suit', 'value', 'name'])
             for _ in range(2):
                 self.deal_card(player)
             player.hand = player.hole.copy()
-        for player in self.players:
+        for player in recipients:
             player.determine_hand(n_players=self.n_players)
-        self.simulate()
 
     def deal_community(self, n_cards=1):
         for _ in range(n_cards):
@@ -80,36 +85,86 @@ class Game:
         for player in self.players:
             player.determine_hand(n_players=self.n_players)
             
-    def simulate(self, n_samples=100):
+    def simulate(self, n_samples=200):
+        """
+        Perform Monte Carlo simulation of remaining game from this point to
+        determining:
+            1) The probability of the user obtaining each hand
+            2) The probability that the user will win the game
+
+        PARAMETERS
+        ----------
+        n_samples : int
+            Number of simulations to run
+        """
+
+        # Initialise somewhere to store the results of each simulation
         card_frequencies = pd.DataFrame(
             index=self.user.hand_score.index,
             columns=['frequency'],
             data=np.zeros([self.user.hand_score.shape[0], ])
         )
-        n_cards_left = 7 - self.user.hand.shape[0]
         user_wins = 0
-        for i in tqdm(range(n_samples)):
+
+        # Number of deals left in the game at this stage
+        n_cards_left = 7 - self.user.hand.shape[0]
+
+        # Loop through each simulation
+        for _ in tqdm(range(n_samples)):
+
+            # Need to randomise the contents on the deck and opponents hands
             sim_game = deepcopy(self)
-            shuffle(sim_game.deck)
+            users_cards = [[row['suit'], row['value']]
+                           for _, row in sim_game.user.hand.iterrows()]
+            sim_game.prepare_deck(excluded_cards=users_cards)
+            sim_game.deal_hole(opponents_only=True)
+
+            # Complete the rest of the game and save results
             sim_game.deal_community(n_cards=n_cards_left)
             card_frequencies['frequency'] \
                 += sim_game.user.hand_score['present'].astype(int)
-            if self.determine_winner() == sim_game.user.table_position:
+            winning_player = sim_game.determine_winner()
+            if winning_player is sim_game.user:
                 user_wins += 1
-            
+
+        # Turn into probabilities and assign results
         card_frequencies /= n_samples
         user_wins /= n_samples
         self.user.hand_score['probability_of_occurring'] = card_frequencies
         self.user.win_probability = user_wins
 
     def determine_winner(self):
-        result = pd.DataFrame({
-            'hand_score': [player.best_hand_numeric for player in self.players],
-            'hand_name': [player.best_hand for player in self.players],
-            'hand_high_card': [player.best_hand_high_card
-                               for player in self.players],
-            'position': [player.table_position for player in self.players]
-        })
-        result.sort_values(by='hand_score', ascending=False, inplace=True)
-        winning_position = result.iloc[0, -1]
-        return winning_position
+
+        # Compare each players best hand
+        player_scores = pd.DataFrame(dict(
+            player_position=np.zeros([len(self.players), ], dtype=int),
+            hand_score=np.zeros([len(self.players), ], dtype=float)
+        ))
+        for i, player in enumerate(self.players):
+            hands_made = player.hand_score[player.hand_score['present']]
+            hands_made.sort_values(by=['hand_rank', 'high_card'],
+                                   ascending=[False, False],
+                                   inplace=True)
+
+            player_scores.loc[i, 'player_position'] = \
+                player.table_position
+            player_scores.loc[i, 'hand_score'] = \
+                hands_made.iloc[0, 0] + hands_made.iloc[0, -1] / 100
+
+        player_scores = \
+            player_scores.sort_values(by='hand_score', ascending=False)\
+            .reset_index(drop=True)
+        best_score = player_scores.loc[0, 'hand_score']
+        score_shared = (player_scores['hand_score'] == best_score).sum() > 1
+
+        # In case of draw: best hand
+        if score_shared:
+            tied_positions = \
+                player_scores.loc[player_scores['hand_score'] == best_score,
+                                  'player_position']
+            for player in self.players:
+                if player.table_position in tied_positions:
+                    pass
+
+        self.players.sort(key=lambda x: x.hand_score_numeric)
+        return self.players[0]

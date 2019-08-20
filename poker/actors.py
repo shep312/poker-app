@@ -1,13 +1,6 @@
 import pandas as pd
 import numpy as np
-from poker.utils import HANDS_RANK, STAGE_NAMES, \
-    DRAWS_REMAINING_AT_STAGE, possible_straights, SUITS, VALUES, \
-    possible_full_houses
-from poker.probabilities import calculate_pair_prob, calculate_two_pair_prob, \
-    calculate_three_of_a_kind_prob, calculate_straight_prob, \
-    calculate_flush_prob, calculate_flush_prob, calculate_full_house_prob, \
-    calculate_four_of_a_kind_prob, calculate_royal_flush_prob, \
-    calculate_straight_flush_prob
+from poker.utils import HANDS_RANK, CARDS_IN_HAND
 
 
 class Player:
@@ -25,23 +18,20 @@ class Player:
             'hand_rank': list(HANDS_RANK.values()),
             'present': np.zeros([len(HANDS_RANK), ], dtype=bool),
             'probability_of_occurring': np.zeros([len(HANDS_RANK), ]),
-            'high_card': np.zeros([len(HANDS_RANK), ], dtype=int)
+            'high_card': np.zeros([len(HANDS_RANK), ], dtype=int),
+            'required_cards': np.zeros([len(HANDS_RANK), ], dtype=int),
         }).set_index('hand')
-        self.best_hand = None
-        self.best_hand_high_card = 0
-        self.best_hand_numeric = 0
+        self.hand_score_numeric = 0.0
 
     def determine_hand(self, n_players):
         """
         Determine what hands are present in a player's hand
         and therefore how strong it is
     
-        Parameters
+        PARAMETERS
         ----------
         n_players : int 
             Number of players in game
-        deck : list 
-            Cards remaining in the deck
         """
         assert isinstance(n_players, int), 'n_players must be a integer'
         assert self.hand.shape[0] <= 7, 'player has more than 7 cards'
@@ -59,19 +49,19 @@ class Player:
         if any(value_counts == 2):
             self._add_hand_to_player('Pair')
             self.hand_score.loc['Pair', 'high_card'] = \
-                value_counts[value_counts == 2].idxmax()
+                value_counts[value_counts == 2].index.max()
 
         # Two pair
         if sum(value_counts == 2) >= 2:
             self._add_hand_to_player('Two pairs')
             self.hand_score.loc['Two pairs', 'high_card'] = \
-                value_counts[value_counts == 2].idxmax()
+                value_counts[value_counts == 2].index.max()
 
         # Three of a kind
         if any(value_counts == 3):
             self._add_hand_to_player('Three of a kind')
             self.hand_score.loc['Three of a kind', 'high_card'] = \
-                value_counts[value_counts == 3].idxmax()
+                value_counts[value_counts == 3].index.max()
 
         # Straight
         aces_high_hand = self.hand.copy()
@@ -105,7 +95,7 @@ class Player:
         # Flush
         suit_counts = self.hand['suit'].value_counts()
         if any(suit_counts >= 5):
-            flushed_suit = suit_counts[suit_counts >= 5].idxmax()
+            flushed_suit = suit_counts[suit_counts >= 5].index.max()
             self._add_hand_to_player('Flush')
             self.hand_score.loc['Flush', 'high_card'] = \
                 self.hand.loc[self.hand['suit'] == flushed_suit, 'value'].max()
@@ -114,8 +104,8 @@ class Player:
         if any(value_counts == 2) and any(value_counts == 3):
             self.hand_score.loc['Full house', 'present'] = True
             self.hand_score.loc['Full house', 'probability_of_occurring'] = 1
-            triple_value = value_counts[value_counts == 3].idxmax()
-            double_value = value_counts[value_counts == 2].idxmax()
+            triple_value = value_counts[value_counts == 3].index.max()
+            double_value = value_counts[value_counts == 2].index.max()
             # So 8s full of 3s would be 3.08
             self.hand_score.loc['Full house', 'high_card'] = \
                 triple_value + double_value / 100
@@ -162,16 +152,32 @@ class Player:
                 self.hand_score.loc['Straight flush', 'high_card'] = \
                     self.hand_score.loc['Straight', 'high_card']
 
-        # Pick out best hand
-        # TODO pick out second best hands
+        # Order by best, present hands
         present_hands = self.hand_score[self.hand_score['present']]
-        self.best_hand = present_hands['hand_rank'].idxmax()
-        self.best_hand_high_card = \
-            present_hands.loc[self.best_hand, 'high_card']
-        # Convert the hand to numeric rank
-        self.best_hand_numeric = \
-            present_hands.loc[self.best_hand, 'hand_rank'] \
-            + self.best_hand_high_card / 100
+        present_hands.sort_values(by=['hand_rank', 'high_card'],
+                                  ascending=[False, False],
+                                  inplace=True)
+
+        # Convert these hands into a single comparable number
+        self.hand_score_numeric = 0
+        if present_hands.iloc[0, 0] >= 4:
+            self.hand_score_numeric = \
+                present_hands.iloc[0, 0] * 10000 + present_hands.iloc[0, 0] * 100
+        else:
+            max_cards = 5
+            card_count = 0
+            for i, (_, row) in enumerate(present_hands.iterrows()):
+                fac = {
+                    0: [1, 100],
+                    1: [1000, 100000],
+                    2: [1000000, 100000000],
+                    3: [1000000000, 100000000000],
+                    4: [1000000000000, 10000000000000],
+                }
+                if row['cards_required'] <= max_cards - card_count:
+                    self.hand_score_numeric += \
+                        row['hand_rank'] / fac[i][0] + row['high_card'] / fac[i][1]
+                    card_count += row['cards_required']
 
     def _add_hand_to_player(self, hand):
         """
@@ -185,6 +191,7 @@ class Player:
         """
         self.hand_score.loc[hand, 'present'] = True
         self.hand_score.loc[hand, 'probability_of_occurring'] = 1
+        self.hand_score.loc[hand, 'required_cards'] = CARDS_IN_HAND[hand]
 
 
 class Opponent(Player):

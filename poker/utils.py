@@ -17,6 +17,21 @@ HANDS_RANK = {
     'Royal flush': 9
 }
 
+# Number of cards required in each hand - used to get best 5 card hand per
+# player
+CARDS_IN_HAND = {
+    'High card': 1,
+    'Pair': 2,
+    'Two pairs': 4,
+    'Three of a kind': 3,
+    'Straight': 5,
+    'Flush': 5,
+    'Full house': 5,
+    'Four of a kind': 5,
+    'Straight flush': 5,
+    'Royal flush': 5
+}
+
 # Define the stage names during the game. Keys are the number of cards
 # a player has at that stage
 STAGE_NAMES = {
