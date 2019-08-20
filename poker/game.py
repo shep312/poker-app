@@ -33,9 +33,9 @@ class Game:
         self.players[1].is_small_blind = True
         self.players[2].is_big_blind = True
 
-        self.shuffle_deck()
+        self.prepare_deck()
 
-    def shuffle_deck(self):
+    def prepare_deck(self):
         value_names = list(VALUES.keys())
         suit_names = list(SUITS.keys())
         self.deck = [[suit, val] for val in value_names for suit in suit_names]
@@ -86,26 +86,21 @@ class Game:
             columns=['frequency'],
             data=np.zeros([self.user.hand_score.shape[0], ])
         )
-        if self.user.hand.shape[0] == 2:
-            print('Simulating outcomes...')
-            for i in tqdm(range(n_samples)):
-                sim_game = deepcopy(self)
-                shuffle(sim_game.deck)
-                sim_game.deal_community(n_cards=3)
-                sim_game.deal_community(n_cards=1)
-                sim_game.deal_community(n_cards=1)
-                card_frequencies['frequency'] \
-                    += sim_game.user.hand_score['present'].astype(int)
-                
-        elif self.user.hand.shape[0] == 5:
-            self.deal_community(n_cards=1)
-            self.deal_community(n_cards=1)
-            
-        elif self.user.hand.shape[0] == 6:
-            self.deal_community(n_cards=1)
+        n_cards_left = 7 - self.user.hand.shape[0]
+        user_wins = 0
+        for i in tqdm(range(n_samples)):
+            sim_game = deepcopy(self)
+            shuffle(sim_game.deck)
+            sim_game.deal_community(n_cards=n_cards_left)
+            card_frequencies['frequency'] \
+                += sim_game.user.hand_score['present'].astype(int)
+            if self.determine_winner() == sim_game.user.table_position:
+                user_wins += 1
             
         card_frequencies /= n_samples
+        user_wins /= n_samples
         self.user.hand_score['probability_of_occurring'] = card_frequencies
+        self.user.win_probability = user_wins
 
     def determine_winner(self):
         result = pd.DataFrame({
@@ -116,5 +111,5 @@ class Game:
             'position': [player.table_position for player in self.players]
         })
         result.sort_values(by='hand_score', ascending=False, inplace=True)
-        print('Player in position {} wins!'.format(result.iloc[0, -1]))
-        print('Hands:\n{}'.format(result))
+        winning_position = result.iloc[0, -1]
+        return winning_position

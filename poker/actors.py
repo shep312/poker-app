@@ -192,4 +192,7 @@ class Opponent(Player):
 
 
 class User(Player):
-    pass
+
+    def __init__(self):
+        super().__init__()
+        self.win_probability = 0
