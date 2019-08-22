@@ -10,9 +10,9 @@ from poker.utils import get_card_name, SUITS, VALUES
 class Game:
 
     def __init__(self, n_players):
-        assert n_players >= 3, 'Must be at least 3 players'
+        assert n_players >= 2, 'Must be at least 2 players'
         self.n_players = n_players
-        self.opponents = [Opponent() for i in range(n_players - 1)]
+        self.opponents = [Opponent() for _ in range(n_players - 1)]
         self.user = User()
         self.players = self.opponents + [self.user]
         self.deck = []
@@ -73,7 +73,7 @@ class Game:
                 self.deal_card(player)
             player.hand = player.hole.copy()
         for player in recipients:
-            player.determine_hand(n_players=self.n_players)
+            player.determine_hand()
 
     def deal_community(self, n_cards=1):
         for _ in range(n_cards):
@@ -83,7 +83,7 @@ class Game:
                 player.hand = pd.concat([player.hole, self.community_cards])
                 player.hand.reset_index(drop=True, inplace=True)
         for player in self.players:
-            player.determine_hand(n_players=self.n_players)
+            player.determine_hand()
             
     def simulate(self, n_samples=200):
         """
@@ -149,7 +149,7 @@ class Game:
             player_scores.loc[i, 'player_position'] = \
                 player.table_position
             player_scores.loc[i, 'hand_score'] = \
-                hands_made.iloc[0, 0] + hands_made.iloc[0, -1] / 100
+                hands_made.iloc[0, 0] + hands_made.iloc[0, -2] / 100
 
         player_scores = \
             player_scores.sort_values(by='hand_score', ascending=False)\
