@@ -123,4 +123,126 @@ def test_straight():
         [[1, 10], [2, 11], [3, 12], [2, 13], [2, 14]]
 
 
+def test_flush():
+    player = Player()
+    cards = [
+        dict(suit=1, value=2, name='dummy_name'),
+        dict(suit=1, value=3, name='dummy_name_2'),
+        dict(suit=1, value=4, name='dummy_name_3'),
+        dict(suit=1, value=5, name='dummy_name_4'),
+        dict(suit=1, value=6, name='dummy_name_4')
+
+    ]
+    for card in cards:
+        player.hand = player.hand.append(card, ignore_index=True)
+    player.hand.reset_index(drop=True, inplace=True)
+
+    player.determine_hand()
+    assert player.hand_score.loc['Flush', 'high_card'] == 6
+    assert player.hand_score.loc['Flush', 'present']
+    assert player.hand_score.loc['Flush', 'required_cards'] == \
+        [[1, 2], [1, 3], [1, 4], [1, 5], [1, 6]]
+
+
+def test_full_house():
+    player = Player()
+    cards = [
+        dict(suit=1, value=2, name='dummy_name'),
+        dict(suit=2, value=2, name='dummy_name_2'),
+        dict(suit=3, value=3, name='dummy_name_3'),
+        dict(suit=4, value=3, name='dummy_name_4'),
+        dict(suit=1, value=3, name='dummy_name_4')
+
+    ]
+    for card in cards:
+        player.hand = player.hand.append(card, ignore_index=True)
+    player.hand.reset_index(drop=True, inplace=True)
+
+    player.determine_hand()
+    assert player.hand_score.loc['Full house', 'high_card'] == 3.02
+    assert player.hand_score.loc['Full house', 'present']
+    assert sorted(player.hand_score.loc['Full house', 'required_cards']) == \
+        sorted([[1, 2], [2, 2], [3, 3], [4, 3], [1, 3]])
+
+
+def test_four_of_a_kind():
+    player = Player()
+    cards = [
+        dict(suit=1, value=3, name='dummy_name'),
+        dict(suit=2, value=3, name='dummy_name_2'),
+        dict(suit=3, value=3, name='dummy_name_3'),
+        dict(suit=4, value=3, name='dummy_name_4')
+
+    ]
+    for card in cards:
+        player.hand = player.hand.append(card, ignore_index=True)
+    player.hand.reset_index(drop=True, inplace=True)
+
+    player.determine_hand()
+    assert player.hand_score.loc['Four of a kind', 'high_card'] == 3
+    assert player.hand_score.loc['Four of a kind', 'present']
+    assert sorted(player.hand_score.loc['Four of a kind', 'required_cards']) == \
+        sorted([[1, 3], [2, 3], [3, 3], [4, 3]])
+
+
+def test_straight_flush():
+    player = Player()
+    cards = [
+        dict(suit=1, value=2, name='dummy_name'),
+        dict(suit=1, value=3, name='dummy_name_2'),
+        dict(suit=1, value=4, name='dummy_name_3'),
+        dict(suit=1, value=5, name='dummy_name_4'),
+        dict(suit=1, value=14, name='dummy_name_5')
+    ]
+    for card in cards:
+        player.hand = player.hand.append(card, ignore_index=True)
+    player.hand.reset_index(drop=True, inplace=True)
+
+    player.determine_hand()
+    assert player.hand_score.loc['Straight flush', 'high_card'] == 5
+    assert player.hand_score.loc['Straight flush', 'present']
+    assert sorted(player.hand_score.loc['Straight flush', 'required_cards']) == \
+        sorted([[1, 2], [1, 3], [1, 4], [1, 5], [1, 14]])
+
+
+def test_royal_flush():
+    player = Player()
+    cards = [
+        dict(suit=1, value=10, name='dummy_name'),
+        dict(suit=1, value=11, name='dummy_name_2'),
+        dict(suit=1, value=12, name='dummy_name_3'),
+        dict(suit=1, value=13, name='dummy_name_4'),
+        dict(suit=1, value=14, name='dummy_name_5')
+    ]
+    for card in cards:
+        player.hand = player.hand.append(card, ignore_index=True)
+    player.hand.reset_index(drop=True, inplace=True)
+
+    player.determine_hand()
+    assert player.hand_score.loc['Royal flush', 'high_card'] == 14
+    assert player.hand_score.loc['Royal flush', 'present']
+    assert sorted(player.hand_score.loc['Royal flush', 'required_cards']) == \
+        sorted([[1, 10], [1, 11], [1, 12], [1, 13], [1, 14]])
+
+
+def test_remove_card():
+    player = Player()
+    cards = [
+        dict(suit=1, value=10, name='dummy_name'),
+        dict(suit=1, value=11, name='dummy_name_2')
+    ]
+    for card in cards:
+        player.hand = player.hand.append(card, ignore_index=True)
+    player.hand.reset_index(drop=True, inplace=True)
+    player.remove_cards([[1, 10]])
+    assert player.hand.shape[0] == 1
+    assert 10 not in player.hand['value']
+
+
+def test_fold():
+    player = Player()
+    assert not player.folded
+    player.fold()
+    assert player.folded
+
 

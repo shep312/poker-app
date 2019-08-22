@@ -85,7 +85,7 @@ class Game:
         for player in self.players:
             player.determine_hand()
             
-    def simulate(self, n_samples=200):
+    def simulate(self, n_samples=3):
         """
         Perform Monte Carlo simulation of remaining game from this point to
         determining:
@@ -136,11 +136,18 @@ class Game:
     def determine_winner(self):
 
         # Compare each players best hand
+        n_remaining_players = sum([player.folded for player in self.players])
         player_scores = pd.DataFrame(dict(
-            player_position=np.zeros([len(self.players), ], dtype=int),
-            hand_score=np.zeros([len(self.players), ], dtype=float)
+            player_position=np.zeros([len(n_remaining_players), ], dtype=int),
+            hand_score=np.zeros([len(n_remaining_players), ], dtype=float),
+            hand_name=np.empty([len(n_remaining_players), ], dtype=np.object)
         ))
+        player_scores['hand_cards'] = \
+            np.empty((len(n_remaining_players), 0)).tolist()
         for i, player in enumerate(self.players):
+            if player.folded:
+                continue
+
             hands_made = player.hand_score[player.hand_score['present']]
             hands_made.sort_values(by=['hand_rank', 'high_card'],
                                    ascending=[False, False],
@@ -150,6 +157,8 @@ class Game:
                 player.table_position
             player_scores.loc[i, 'hand_score'] = \
                 hands_made.iloc[0, 0] + hands_made.iloc[0, -2] / 100
+            player_scores.loc[i, 'hand_name'] = hands_made.index[0]
+            player_scores.at[i, 'hand_cards'] = hands_made.iloc[0, -1]
 
         player_scores = \
             player_scores.sort_values(by='hand_score', ascending=False)\
@@ -164,7 +173,19 @@ class Game:
                                   'player_position']
             for player in self.players:
                 if player.table_position in tied_positions:
-                    pass
+                    cards_to_remove = \
+                        player_scores.loc[
+                            player_scores['player_position'] == player.table_position,
+                            'hand_cards'
+                        ]
+                    player.remove_hand(cards_to_remove)
+                    player.determine_hand()
+                    self.determine_winner()
+                else:
+                    player.fold()
 
-        self.players.sort(key=lambda x: x.hand_score_numeric)
-        return self.players[0]
+        else:
+            winning_position = player_scores.loc[0, 'player_position']
+            winning_player = [player for player in self.players
+                              if player.table_position == winning_position]
+            return winning_player[0]

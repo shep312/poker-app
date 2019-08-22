@@ -106,9 +106,12 @@ class Player:
             high_card = aces_low_hand.loc[high_card_idx, 'value']
             self.hand_score.loc['Straight', 'high_card'] = high_card
             link_num = aces_low_hand.loc[high_card_idx, 'not_linked']
+            # Create DF of required hands to convert aces back
+            req_hands_df = aces_low_hand.loc[aces_low_hand['not_linked'] == link_num,
+                                             ['suit', 'value']]
+            req_hands_df['value'] = req_hands_df['value'].replace(1, 14)
             self.hand_score.at['Straight', 'required_cards'] = \
-                aces_low_hand.loc[aces_low_hand['not_linked'] == link_num,
-                                  ['suit', 'value']].values.tolist()
+                req_hands_df.values.tolist()
             straight_type = 'aces_low'
 
         # Flush
@@ -116,8 +119,14 @@ class Player:
         if any(suit_counts >= 5):
             flushed_suit = suit_counts[suit_counts >= 5].index.max()
             self._add_hand_to_player('Flush')
-            self.hand_score.loc['Flush', 'high_card'] = \
+            high_card = \
                 self.hand.loc[self.hand['suit'] == flushed_suit, 'value'].max()
+            self.hand_score.loc['Flush', 'high_card'] = high_card
+            # TODO not sure which cards to require in case of over 5 matching
+            # cards
+            self.hand_score.at['Flush', 'required_cards'] = \
+                self.hand.loc[self.hand['suit'] == flushed_suit,
+                              ['suit', 'value']].values.tolist()[:5]
 
         # Full house
         if any(value_counts == 2) and any(value_counts == 3):
@@ -129,47 +138,87 @@ class Player:
             self.hand_score.loc['Full house', 'high_card'] = \
                 triple_value + double_value / 100
 
+            req_cards = \
+                self.hand.loc[self.hand['value'] == triple_value,
+                              ['suit', 'value']].values.tolist()[:3]\
+                + self.hand.loc[self.hand['value'] == double_value,
+                                ['suit', 'value']].values.tolist()[:2]
+            self.hand_score.at['Full house', 'required_cards'] = req_cards
+
         # Four of a kind
         if any(value_counts == 4):
             self.hand_score.loc['Four of a kind', 'present'] = True
             self.hand_score.loc['Four of a kind', 'probability_of_occurring'] = 1
-            self.hand_score.loc['Four of a kind', 'high_card'] = \
-                value_counts[value_counts == 4].index.max()
+            four_value = value_counts[value_counts == 4].index.max()
+            self.hand_score.loc['Four of a kind', 'high_card'] = four_value
+            self.hand_score.at['Four of a kind', 'required_cards'] = \
+                self.hand.loc[self.hand['value'] == four_value, ['suit', 'value']]\
+                    .values.tolist()
 
         # Straight flush
         def check_straight_type(hand):
+            straight_version = None
             straight_link = \
-                hand.loc[hand['streak'] == 4, 'not_linked']
-            straight_cards = \
-                hand[hand['not_linked'] == straight_link.max()]
-            if straight_cards['suit'].nunique() == 1 \
-                    and straight_cards['value'].max() == 14:
-                return 'Royal flush'
-            elif straight_cards['suit'].nunique() == 1:
-                return 'Straight flush'
-            else:
-                return None
+                hand.loc[hand['streak'].max(), 'not_linked']
+            cards = \
+                hand[hand['not_linked'] == straight_link.max()].copy()
+
+            value_counts = cards['suit'].value_counts()
+            if value_counts.max() >= 5 \
+                    and cards['value'].max() == 14:
+                straight_version = 'Royal flush'
+                straight_suit = value_counts.idxmax()
+                cards = \
+                    cards[cards['suit'] == straight_suit]
+
+            elif value_counts.max() >= 5:
+                straight_version = 'Straight flush'
+                straight_suit = value_counts.idxmax()
+                cards = \
+                    cards[cards['suit'] == straight_suit]
+
+            cards.reset_index(drop=True, inplace=True)
+            cards = cards[['suit', 'value']].iloc[:5, :]
+            return straight_version, cards
 
         if straight_type == 'aces_high':
-            if check_straight_type(aces_high_hand) == 'Straight flush':
+            straight_level, straight_cards = check_straight_type(aces_high_hand)
+            if straight_level == 'Straight flush':
                 self.hand_score.loc['Straight flush', 'present'] = True
                 self.hand_score.loc['Straight flush',
                                     'probability_of_occurring'] = 1
                 self.hand_score.loc['Straight flush', 'high_card'] = \
                     self.hand_score.loc['Straight', 'high_card']
-            if check_straight_type(aces_high_hand) == 'Royal flush':
+                self.hand_score.at['Straight flush', 'required_cards'] = \
+                    straight_cards.values.tolist()
+            if straight_level == 'Royal flush':
                 self.hand_score.loc['Royal flush', 'present'] = True
                 self.hand_score.loc['Royal flush', 'probability_of_occurring'] = 1
                 self.hand_score.loc['Royal flush', 'high_card'] = \
                     self.hand_score.loc['Straight', 'high_card']
+                self.hand_score.at['Royal flush', 'required_cards'] = \
+                    straight_cards.values.tolist()
 
         elif straight_type == 'aces_low':
-            if check_straight_type(aces_low_hand) == 'Straight flush':
+            straight_level, straight_cards = check_straight_type(aces_low_hand)
+            straight_cards['value'] = straight_cards['value'].replace(1, 14)
+            if straight_level == 'Straight flush':
                 self.hand_score.loc['Straight flush', 'present'] = True
                 self.hand_score.loc['Straight flush',
                                     'probability_of_occurring'] = 1
                 self.hand_score.loc['Straight flush', 'high_card'] = \
                     self.hand_score.loc['Straight', 'high_card']
+                self.hand_score.at['Straight flush', 'required_cards'] = \
+                    straight_cards.values.tolist()
+
+    def fold(self):
+        self.folded = True
+
+    def remove_cards(self, cards):
+        for card in cards:
+            mask = (self.hand['value'] == card[1]) \
+                   & (self.hand['suit'] == card[0])
+            self.hand = self.hand[~mask]
 
     def _add_hand_to_player(self, hand):
         """

@@ -16,7 +16,7 @@ def test_prepare_deck():
     game = Game(n_players)
     assert len(game.deck) == 52, 'Too many cards to start'
 
-    ex_cards = [[1, 1], [3, 4], [2, 2]]
+    ex_cards = [[1, 9], [3, 4], [2, 2]]
     game.prepare_deck(excluded_cards=ex_cards)
     assert len(game.deck) == (52 - len(ex_cards)), \
         'Card exclusion when preparing deck not working'

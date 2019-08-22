@@ -2,7 +2,7 @@ from datetime import datetime
 from poker.game import Game
 
 print(datetime.now().strftime('%H:%M:%S'))
-for _ in range(10):
+for _ in range(1000):
     run = Game(n_players=4)
     run.deal_hole()
     run.simulate()
