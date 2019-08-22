@@ -85,7 +85,7 @@ class Game:
         for player in self.players:
             player.determine_hand()
             
-    def simulate(self, n_samples=3):
+    def simulate(self, n_samples=200):
         """
         Perform Monte Carlo simulation of remaining game from this point to
         determining:
@@ -136,14 +136,16 @@ class Game:
     def determine_winner(self):
 
         # Compare each players best hand
-        n_remaining_players = sum([player.folded for player in self.players])
+        n_remaining_players = sum([not player.folded for player in self.players])
+        assert n_remaining_players > 0, 'No players left in the game'
+
         player_scores = pd.DataFrame(dict(
-            player_position=np.zeros([len(n_remaining_players), ], dtype=int),
-            hand_score=np.zeros([len(n_remaining_players), ], dtype=float),
-            hand_name=np.empty([len(n_remaining_players), ], dtype=np.object)
+            player_position=np.zeros([n_remaining_players, ], dtype=int),
+            hand_score=np.zeros([n_remaining_players, ], dtype=float),
+            hand_name=np.empty([n_remaining_players, ], dtype=np.object)
         ))
         player_scores['hand_cards'] = \
-            np.empty((len(n_remaining_players), 0)).tolist()
+            np.empty((n_remaining_players, 0)).tolist()
         for i, player in enumerate(self.players):
             if player.folded:
                 continue
@@ -168,18 +170,41 @@ class Game:
 
         # In case of draw: best hand
         if score_shared:
+
+            # If all these hands are using the same card its the community
+            # deck so its an actual draw. Introduce card IDs?
+            best_hand = player_scores.loc[0, 'hand_cards']
+            best_hand_is_community = True
+            for i, row in player_scores.iterrows():
+                if row['hand_cards'] != best_hand:
+                    best_hand_is_community = False
+                    break
+
+            if best_hand_is_community:
+                return [player for player in self.players if not player.folded]
+
+            # Otherwise take the best hand away from the tied players and
+            # re-score their remaining hand
+            # TODO need to ensure they only use a max of 5 cards total
             tied_positions = \
                 player_scores.loc[player_scores['hand_score'] == best_score,
                                   'player_position']
+
+            total_hand_size = 5
             for player in self.players:
-                if player.table_position in tied_positions:
+                if player.table_position in tied_positions.values:
                     cards_to_remove = \
                         player_scores.loc[
                             player_scores['player_position'] == player.table_position,
                             'hand_cards'
-                        ]
-                    player.remove_hand(cards_to_remove)
-                    player.determine_hand()
+                        ].values[0]
+                    # TODO only recalc hand if less than 5 in main hand
+                    # How to track they won't improve?
+                    cards_left = total_hand_size - len(cards_to_remove)
+                    if cards_left:
+                        player.remove_cards(cards_to_remove)
+                        player.reset_hand_score()
+                        player.determine_hand()
                     self.determine_winner()
                 else:
                     player.fold()

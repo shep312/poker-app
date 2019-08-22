@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-from poker.utils import HANDS_RANK, CARDS_IN_HAND
+from poker.utils import HANDS_RANK
 
 
 class Player:
@@ -29,7 +29,7 @@ class Player:
         Determine what hands are present in a player's hand
         and therefore how strong it is
         """
-        assert 2 <= self.hand.shape[0] <= 7, 'player has a bad number of cards'
+        assert self.hand.shape[0] <= 7, 'player has a bad number of cards'
         assert not any(self.hand.duplicated()), 'player has duplicate cards'
 
         # Run checks to see what hands are currently present
@@ -41,7 +41,7 @@ class Player:
             # Just need one of the cards with this value
             self.hand_score.at['High card', 'required_cards'] = \
                 self.hand.loc[self.hand['value'] == max_value, ['suit', 'value']]\
-                .values.tolist()[:1]
+                .values.tolist()[0]
                 
         # Pair
         value_counts = self.hand['value'].value_counts()
@@ -57,8 +57,10 @@ class Player:
         # Two pair
         if sum(value_counts == 2) >= 2:
             self._add_hand_to_player('Two pairs')
-            pair_values = value_counts[value_counts == 2].index.tolist()
-            self.hand_score.loc['Two pairs', 'high_card'] = max(pair_values)
+            pair_values = \
+                value_counts[value_counts == 2].index.sort_values().tolist()
+            self.hand_score.loc['Two pairs', 'high_card'] = \
+                pair_values[1] + pair_values[0] / 100
             self.hand_score.at['Two pairs', 'required_cards'] = \
                 self.hand.loc[self.hand['value'].isin(pair_values), ['suit', 'value']]\
                     .values.tolist()
@@ -218,7 +220,16 @@ class Player:
         for card in cards:
             mask = (self.hand['value'] == card[1]) \
                    & (self.hand['suit'] == card[0])
-            self.hand = self.hand[~mask]
+            self.hand = self.hand[~mask].reset_index(drop=True)
+
+    def reset_hand_score(self):
+        self.hand_score = pd.DataFrame({
+            'hand': list(HANDS_RANK.keys()),
+            'hand_rank': list(HANDS_RANK.values()),
+            'present': np.zeros([len(HANDS_RANK), ], dtype=bool),
+            'probability_of_occurring': np.zeros([len(HANDS_RANK), ]),
+            'high_card': np.zeros([len(HANDS_RANK), ], dtype=int),
+        }).set_index('hand')
 
     def _add_hand_to_player(self, hand):
         """
