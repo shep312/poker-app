@@ -4,7 +4,7 @@ from tqdm import tqdm
 from copy import deepcopy
 from random import shuffle
 from poker.actors import User, Opponent
-from poker.utils import get_card_name, SUITS, VALUES
+from poker.utils import get_card_name, SUITS, VALUES, WinnerNotFoundException
 
 
 class Game:
@@ -134,83 +134,24 @@ class Game:
         self.user.win_probability = user_wins
 
     def determine_winner(self):
-
-        # Compare each players best hand
-        n_remaining_players = sum([not player.folded for player in self.players])
-        assert n_remaining_players > 0, 'No players left in the game'
-
-        player_scores = pd.DataFrame(dict(
-            player_position=np.zeros([n_remaining_players, ], dtype=int),
-            hand_score=np.zeros([n_remaining_players, ], dtype=float),
-            hand_name=np.empty([n_remaining_players, ], dtype=np.object)
-        ))
-        player_scores['hand_cards'] = \
-            np.empty((n_remaining_players, 0)).tolist()
-        for i, player in enumerate(self.players):
-            if player.folded:
-                continue
-
-            hands_made = player.hand_score[player.hand_score['present']]
-            hands_made.sort_values(by=['hand_rank', 'high_card'],
-                                   ascending=[False, False],
-                                   inplace=True)
-
-            player_scores.loc[i, 'player_position'] = \
-                player.table_position
-            player_scores.loc[i, 'hand_score'] = \
-                hands_made.iloc[0, 0] + hands_made.iloc[0, -2] / 100
-            player_scores.loc[i, 'hand_name'] = hands_made.index[0]
-            player_scores.at[i, 'hand_cards'] = hands_made.iloc[0, -1]
-
-        player_scores = \
-            player_scores.sort_values(by='hand_score', ascending=False)\
-            .reset_index(drop=True)
-        best_score = player_scores.loc[0, 'hand_score']
-        score_shared = (player_scores['hand_score'] == best_score).sum() > 1
-
-        # In case of draw: best hand
-        if score_shared:
-
-            # If all these hands are using the same card its the community
-            # deck so its an actual draw. Introduce card IDs?
-            best_hand = player_scores.loc[0, 'hand_cards']
-            best_hand_is_community = True
-            for i, row in player_scores.iterrows():
-                if row['hand_cards'] != best_hand:
-                    best_hand_is_community = False
-                    break
-
-            if best_hand_is_community:
-                return [player for player in self.players if not player.folded]
-
-            # Otherwise take the best hand away from the tied players and
-            # re-score their remaining hand
-            # TODO need to ensure they only use a max of 5 cards total
-            tied_positions = \
-                player_scores.loc[player_scores['hand_score'] == best_score,
-                                  'player_position']
-
-            total_hand_size = 5
+        for player in self.players:
+            player.get_best_five_card_hand()
+        
+        maximum_number_of_hands = 5        
+        for i in range(maximum_number_of_hands):
+            
+            # Check best hand
+            scores = [player.hand_scores_numeric[i] for player in self.players]
+            max_score = max(scores)
+            n_max_score = sum(max_score == np.array(scores))
+            
+            # Fold those out at this stage
             for player in self.players:
-                if player.table_position in tied_positions.values:
-                    cards_to_remove = \
-                        player_scores.loc[
-                            player_scores['player_position'] == player.table_position,
-                            'hand_cards'
-                        ].values[0]
-                    # TODO only recalc hand if less than 5 in main hand
-                    # How to track they won't improve?
-                    cards_left = total_hand_size - len(cards_to_remove)
-                    if cards_left:
-                        player.remove_cards(cards_to_remove)
-                        player.reset_hand_score()
-                        player.determine_hand()
-                    self.determine_winner()
-                else:
+                if player.hand_scores_numeric[i] < max_score:
                     player.fold()
-
-        else:
-            winning_position = player_scores.loc[0, 'player_position']
-            winning_player = [player for player in self.players
-                              if player.table_position == winning_position]
-            return winning_player[0]
+                    
+            # If there is a standalone winner then exit now
+            if n_max_score == 1:
+                break
+        
+        return [player for player in self.players if not player.folded]

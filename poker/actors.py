@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-from poker.utils import HANDS_RANK
+from poker.utils import HANDS_RANK, CARDS_IN_HAND
 
 
 class Player:
@@ -22,7 +22,8 @@ class Player:
         }).set_index('hand')
         self.hand_score['required_cards'] = \
             np.empty((len(self.hand_score), 0)).tolist()
-        self.hand_score_numeric = 0.0
+        self.hand_scores_numeric = []
+        self.n_cards_remaining = 5
 
     def determine_hand(self):
         """
@@ -41,7 +42,7 @@ class Player:
             # Just need one of the cards with this value
             self.hand_score.at['High card', 'required_cards'] = \
                 self.hand.loc[self.hand['value'] == max_value, ['suit', 'value']]\
-                .values.tolist()[0]
+                .values.tolist()[:1]
                 
         # Pair
         value_counts = self.hand['value'].value_counts()
@@ -212,17 +213,48 @@ class Player:
                     self.hand_score.loc['Straight', 'high_card']
                 self.hand_score.at['Straight flush', 'required_cards'] = \
                     straight_cards.values.tolist()
+                    
+    def get_best_five_card_hand(self):
+        
+        # Find the player's best hand
+        present_hands = self.hand_score[self.hand_score['present']]
+        present_hands.sort_values(by=['hand_rank', 'high_card'], 
+                                  ascending=[False, False],
+                                  inplace=True)
+        best_hand_idx = present_hands.index[0]
+        best_hand_cards = present_hands.loc[best_hand_idx, 'required_cards']
+        # assert len(best_hand_cards) <= self.n_cards_remaining
+        if len(best_hand_cards) > self.n_cards_remaining:
+            x = 5
+        self.n_cards_remaining -= len(best_hand_cards)
+        
+        # Assign hand score. E.G.:
+        #    Full house of 2s full of 3s = 603.02
+        #    High card of an ace = 14.0
+        hand_score_numeric = \
+            present_hands.loc[best_hand_idx, 'hand_rank'] * 100 \
+            + present_hands.loc[best_hand_idx, 'high_card']
+        self.hand_scores_numeric.append(hand_score_numeric)
+            
+        # Rescore without the best hand
+        self._remove_cards(best_hand_cards)
+        self._reset_hand_score()
+        self.determine_hand()
+        
+        # Recurse until hands full
+        if self.n_cards_remaining:
+            self.get_best_five_card_hand()
 
     def fold(self):
         self.folded = True
 
-    def remove_cards(self, cards):
+    def _remove_cards(self, cards):
         for card in cards:
             mask = (self.hand['value'] == card[1]) \
                    & (self.hand['suit'] == card[0])
             self.hand = self.hand[~mask].reset_index(drop=True)
 
-    def reset_hand_score(self):
+    def _reset_hand_score(self):
         self.hand_score = pd.DataFrame({
             'hand': list(HANDS_RANK.keys()),
             'hand_rank': list(HANDS_RANK.values()),
@@ -230,19 +262,23 @@ class Player:
             'probability_of_occurring': np.zeros([len(HANDS_RANK), ]),
             'high_card': np.zeros([len(HANDS_RANK), ], dtype=int),
         }).set_index('hand')
+        self.hand_score['required_cards'] = \
+            np.empty((len(self.hand_score), 0)).tolist()
 
     def _add_hand_to_player(self, hand):
         """
-        If the appropriate conditions are met, add this hand to a players
-        hand_score property
+        If the appropriate conditions have been met, add this hand to a players
+        hand_score property. Contingent on the player having enough cards
+        left to include in their final 5 card hand.
 
         Parameters
         ----------
         hand : str
             String indicating the hand that is present
         """
-        self.hand_score.loc[hand, 'present'] = True
-        self.hand_score.loc[hand, 'probability_of_occurring'] = 1
+        if self.n_cards_remaining >= CARDS_IN_HAND[hand]:
+            self.hand_score.loc[hand, 'present'] = True
+            self.hand_score.loc[hand, 'probability_of_occurring'] = 1
 
 
 class Opponent(Player):

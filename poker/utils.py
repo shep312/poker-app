@@ -123,3 +123,7 @@ def ncr(n, r):
     numerator = reduce(op.mul, range(n, n - r, -1), 1)
     denominator = reduce(op.mul, range(1, r + 1), 1)
     return numerator / denominator
+
+
+class WinnerNotFoundException(Exception):     
+    pass
