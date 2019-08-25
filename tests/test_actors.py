@@ -60,7 +60,7 @@ def test_two_pair():
     player.hand.reset_index(drop=True, inplace=True)
 
     player.determine_hand()
-    assert player.hand_score.loc['Two pairs', 'high_card'] == 8
+    assert player.hand_score.loc['Two pairs', 'high_card'] == 8.03
     assert player.hand_score.loc['Two pairs', 'present']
     assert player.hand_score.loc['Two pairs', 'required_cards'] == \
         [[1, 8], [2, 8], [1, 3], [2, 3]]
@@ -234,7 +234,7 @@ def test_remove_card():
     for card in cards:
         player.hand = player.hand.append(card, ignore_index=True)
     player.hand.reset_index(drop=True, inplace=True)
-    player.remove_cards([[1, 10]])
+    player._remove_cards([[1, 10]])
     assert player.hand.shape[0] == 1
     assert 10 not in player.hand['value']
 

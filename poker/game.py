@@ -31,7 +31,10 @@ class Game:
         # Assign initial roles
         self.players[0].is_dealer = True
         self.players[1].is_small_blind = True
-        self.players[2].is_big_blind = True
+        if self.n_players > 2:
+            self.players[2].is_big_blind = True
+        else:
+            self.players[0].is_big_blind = True
 
         self.prepare_deck()
 

@@ -52,3 +52,41 @@ def test_deal_card():
     game.deal_card(game.players[0])
     assert len(game.players[0].hole) == 3, \
         'Player has not received dealt card'
+
+
+def test_simulate():
+    pass
+
+
+def test_determine_winner():
+    game = Game(n_players=2)
+    
+    player_1_cards = [
+        dict(suit=1, value=8, name='dummy_name'),
+        dict(suit=2, value=8, name='dummy_name_2'),
+        dict(suit=1, value=3, name='dummy_name_3'),
+        dict(suit=2, value=3, name='dummy_name_4')
+    ]
+    for card in player_1_cards:
+        game.players[0].hand = \
+            game.players[0].hand.append(card, ignore_index=True)
+    game.players[0].hand.reset_index(drop=True, inplace=True)
+    
+    player_2_cards = [
+        dict(suit=1, value=8, name='dummy_name'),
+        dict(suit=2, value=8, name='dummy_name_2'),
+        dict(suit=1, value=2, name='dummy_name_3'),
+        dict(suit=2, value=2, name='dummy_name_4')
+    ]
+    for card in player_2_cards:
+        game.players[1].hand = \
+            game.players[1].hand.append(card, ignore_index=True)
+    game.players[1].hand.reset_index(drop=True, inplace=True)
+    
+    for player in game.players:
+        player.determine_hand()
+    print(game.players[0].hand_score)
+    winners = game.determine_winner()
+    assert game.players[0] in winners, 'Winner not in winners list'
+    assert game.players[1] not in winners, 'Loser in winners list'
+    
