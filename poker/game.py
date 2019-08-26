@@ -9,9 +9,10 @@ from poker.utils import get_card_name, SUITS, VALUES, WinnerNotFoundException
 
 class Game:
 
-    def __init__(self, n_players):
+    def __init__(self, n_players, simulation_iterations):
         assert n_players >= 2, 'Must be at least 2 players'
         self.n_players = n_players
+        self.n_iter = simulation_iterations
         self.opponents = [Opponent() for _ in range(n_players - 1)]
         self.user = User()
         self.players = self.opponents + [self.user]
@@ -88,17 +89,12 @@ class Game:
         for player in self.players:
             player.determine_hand()
             
-    def simulate(self, n_samples=200):
+    def simulate(self):
         """
         Perform Monte Carlo simulation of remaining game from this point to
         determining:
             1) The probability of the user obtaining each hand
             2) The probability that the user will win the game
-
-        PARAMETERS
-        ----------
-        n_samples : int
-            Number of simulations to run
         """
 
         # Initialise somewhere to store the results of each simulation
@@ -107,13 +103,13 @@ class Game:
             columns=['frequency'],
             data=np.zeros([self.user.hand_score.shape[0], ])
         )
-        user_wins = 0
+        user_wins, user_draws = 0, 0
 
         # Number of deals left in the game at this stage
         n_cards_left = 7 - self.user.hand.shape[0]
 
         # Loop through each simulation
-        for _ in tqdm(range(n_samples)):
+        for _ in tqdm(range(self.n_iter)):
 
             # Need to randomise the contents on the deck and opponents hands
             sim_game = deepcopy(self)
@@ -126,15 +122,20 @@ class Game:
             sim_game.deal_community(n_cards=n_cards_left)
             card_frequencies['frequency'] \
                 += sim_game.user.hand_score['present'].astype(int)
-            winning_player = sim_game.determine_winner()
-            if winning_player is sim_game.user:
-                user_wins += 1
+            winners = sim_game.determine_winner()
+            if sim_game.user in winners:
+                if len(winners) == 1:
+                    user_wins += 1
+                else:
+                    user_draws += 1
 
         # Turn into probabilities and assign results
-        card_frequencies /= n_samples
-        user_wins /= n_samples
+        card_frequencies /= self.n_iter
+        user_wins /= self.n_iter
+        user_draws /= self.n_iter
         self.user.hand_score['probability_of_occurring'] = card_frequencies
         self.user.win_probability = user_wins
+        self.user.draw_probability = user_draws
 
     def determine_winner(self):
         for player in self.players:
@@ -144,13 +145,18 @@ class Game:
         for i in range(maximum_number_of_hands):
             
             # Check best hand
-            scores = [player.hand_scores_numeric[i] for player in self.players]
+            scores = []
+            for player in self.players:
+                if len(player.hand_scores_numeric) > i:
+                    scores.append(player.hand_scores_numeric[i])
+                else:
+                    scores.append(0)
             max_score = max(scores)
             n_max_score = sum(max_score == np.array(scores))
             
             # Fold those out at this stage
-            for player in self.players:
-                if player.hand_scores_numeric[i] < max_score:
+            for j, player in enumerate(self.players):
+                if scores[j] < max_score:
                     player.fold()
                     
             # If there is a standalone winner then exit now

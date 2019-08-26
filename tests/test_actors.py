@@ -106,6 +106,7 @@ def test_straight():
 
     player = Player()
     cards = [
+        dict(suit=1, value=9, name='dummy_name'),
         dict(suit=1, value=10, name='dummy_name'),
         dict(suit=2, value=11, name='dummy_name_2'),
         dict(suit=3, value=12, name='dummy_name_3'),

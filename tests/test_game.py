@@ -58,31 +58,83 @@ def test_simulate():
     pass
 
 
-def test_determine_winner():
+def test_determine_winner_1():
     game = Game(n_players=2)
-    
+
+    # Give player 1 two pairs of 8s and 4s, and another pair of 2s
     player_1_cards = [
         dict(suit=1, value=8, name='dummy_name'),
         dict(suit=2, value=8, name='dummy_name_2'),
-        dict(suit=1, value=3, name='dummy_name_3'),
-        dict(suit=2, value=3, name='dummy_name_4')
+        dict(suit=1, value=4, name='dummy_name_3'),
+        dict(suit=2, value=4, name='dummy_name_4'),
+        dict(suit=3, value=2, name='dummy_name_5'),
+        dict(suit=3, value=2, name='dummy_name_6'),
+        dict(suit=4, value=9, name='dummy_name_7')
     ]
     for card in player_1_cards:
         game.players[0].hand = \
             game.players[0].hand.append(card, ignore_index=True)
     game.players[0].hand.reset_index(drop=True, inplace=True)
-    
+
+    # Give player 2 two pairs of 8s and 3s, and another pair of 2s
     player_2_cards = [
         dict(suit=1, value=8, name='dummy_name'),
         dict(suit=2, value=8, name='dummy_name_2'),
-        dict(suit=1, value=2, name='dummy_name_3'),
-        dict(suit=2, value=2, name='dummy_name_4')
+        dict(suit=1, value=3, name='dummy_name_3'),
+        dict(suit=2, value=3, name='dummy_name_4'),
+        dict(suit=3, value=2, name='dummy_name_5'),
+        dict(suit=3, value=2, name='dummy_name_6'),
+        dict(suit=4, value=9, name='dummy_name_7')
     ]
     for card in player_2_cards:
         game.players[1].hand = \
             game.players[1].hand.append(card, ignore_index=True)
     game.players[1].hand.reset_index(drop=True, inplace=True)
     
+    for player in game.players:
+        player.determine_hand()
+    print(game.players[0].hand_score)
+    winners = game.determine_winner()
+    assert game.players[0] in winners, 'Winner not in winners list'
+    assert game.players[1] not in winners, 'Loser in winners list'
+
+
+def test_determine_winner_2():
+    """
+    Same hand, but one has a better pair in reserve that can't be used due
+    to not enough cards left in 5-card hand, so high card wins
+    """
+    game = Game(n_players=2)
+
+    player_1_cards = [
+        dict(suit=1, value=8, name='dummy_name'),
+        dict(suit=2, value=8, name='dummy_name_2'),
+        dict(suit=1, value=4, name='dummy_name_3'),
+        dict(suit=2, value=4, name='dummy_name_4'),
+        dict(suit=3, value=2, name='dummy_name_5'),
+        dict(suit=3, value=2, name='dummy_name_6'),
+        dict(suit=4, value=10, name='dummy_name_7')
+    ]
+    for card in player_1_cards:
+        game.players[0].hand = \
+            game.players[0].hand.append(card, ignore_index=True)
+    game.players[0].hand.reset_index(drop=True, inplace=True)
+
+    # Give player 2 two pairs of 8s and 3s, and another pair of 2s
+    player_2_cards = [
+        dict(suit=1, value=8, name='dummy_name'),
+        dict(suit=2, value=8, name='dummy_name_2'),
+        dict(suit=1, value=4, name='dummy_name_3'),
+        dict(suit=2, value=4, name='dummy_name_4'),
+        dict(suit=1, value=3, name='dummy_name_5'),
+        dict(suit=2, value=3, name='dummy_name_6'),
+        dict(suit=4, value=9, name='dummy_name_7')
+    ]
+    for card in player_2_cards:
+        game.players[1].hand = \
+            game.players[1].hand.append(card, ignore_index=True)
+    game.players[1].hand.reset_index(drop=True, inplace=True)
+
     for player in game.players:
         player.determine_hand()
     print(game.players[0].hand_score)

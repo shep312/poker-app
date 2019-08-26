@@ -58,10 +58,11 @@ class Player:
         # Two pair
         if sum(value_counts == 2) >= 2:
             self._add_hand_to_player('Two pairs')
+            # Take top two pairs
             pair_values = \
-                value_counts[value_counts == 2].index.sort_values().tolist()
+                value_counts[value_counts == 2].index.sort_values(ascending=False).tolist()[:2]
             self.hand_score.loc['Two pairs', 'high_card'] = \
-                pair_values[1] + pair_values[0] / 100
+                pair_values[0] + pair_values[1] / 100
             self.hand_score.at['Two pairs', 'required_cards'] = \
                 self.hand.loc[self.hand['value'].isin(pair_values), ['suit', 'value']]\
                     .values.tolist()
@@ -98,9 +99,10 @@ class Player:
             high_card = aces_high_hand.loc[high_card_idx, 'value']
             self.hand_score.loc['Straight', 'high_card'] = high_card
             link_num = aces_high_hand.loc[high_card_idx, 'not_linked']
+            # Take top 5 in best hand
             self.hand_score.at['Straight', 'required_cards'] = \
                 aces_high_hand.loc[aces_high_hand['not_linked'] == link_num,
-                                   ['suit', 'value']].values.tolist()
+                                   ['suit', 'value']].values.tolist()[-5:]
             straight_type = 'aces_high'
         elif aces_low_hand['streak'].max() >= 4:
             self.hand_score.loc['Straight', 'present'] = True
@@ -114,7 +116,7 @@ class Player:
                                              ['suit', 'value']]
             req_hands_df['value'] = req_hands_df['value'].replace(1, 14)
             self.hand_score.at['Straight', 'required_cards'] = \
-                req_hands_df.values.tolist()
+                req_hands_df.values.tolist()[-5:]
             straight_type = 'aces_low'
 
         # Flush
@@ -193,14 +195,14 @@ class Player:
                 self.hand_score.loc['Straight flush', 'high_card'] = \
                     self.hand_score.loc['Straight', 'high_card']
                 self.hand_score.at['Straight flush', 'required_cards'] = \
-                    straight_cards.values.tolist()
+                    straight_cards.values.tolist()[-5:]
             if straight_level == 'Royal flush':
                 self.hand_score.loc['Royal flush', 'present'] = True
                 self.hand_score.loc['Royal flush', 'probability_of_occurring'] = 1
                 self.hand_score.loc['Royal flush', 'high_card'] = \
                     self.hand_score.loc['Straight', 'high_card']
                 self.hand_score.at['Royal flush', 'required_cards'] = \
-                    straight_cards.values.tolist()
+                    straight_cards.values.tolist()[-5:]
 
         elif straight_type == 'aces_low':
             straight_level, straight_cards = check_straight_type(aces_low_hand)
@@ -212,21 +214,19 @@ class Player:
                 self.hand_score.loc['Straight flush', 'high_card'] = \
                     self.hand_score.loc['Straight', 'high_card']
                 self.hand_score.at['Straight flush', 'required_cards'] = \
-                    straight_cards.values.tolist()
+                    straight_cards.values.tolist()[-5:]
                     
     def get_best_five_card_hand(self):
         
         # Find the player's best hand
-        present_hands = self.hand_score[self.hand_score['present']]
+        present_hands = self.hand_score[self.hand_score['present']].copy()
         present_hands.sort_values(by=['hand_rank', 'high_card'], 
                                   ascending=[False, False],
                                   inplace=True)
         best_hand_idx = present_hands.index[0]
         best_hand_cards = present_hands.loc[best_hand_idx, 'required_cards']
-        # assert len(best_hand_cards) <= self.n_cards_remaining
-        if len(best_hand_cards) > self.n_cards_remaining:
-            x = 5
         self.n_cards_remaining -= len(best_hand_cards)
+        assert self.n_cards_remaining >= 0, 'Remaining cards allowed has gone negative'
         
         # Assign hand score. E.G.:
         #    Full house of 2s full of 3s = 603.02
@@ -290,3 +290,4 @@ class User(Player):
     def __init__(self):
         super().__init__()
         self.win_probability = 0
+        self.draw_probability = 0

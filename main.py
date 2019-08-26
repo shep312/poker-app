@@ -3,7 +3,7 @@ from poker.game import Game
 
 print(datetime.now().strftime('%H:%M:%S'))
 for _ in range(10):
-    run = Game(n_players=4)
+    run = Game(n_players=4, simulation_iterations=50)
     run.deal_hole()
     run.simulate()
     run.deal_community(n_cards=3)
