@@ -3,9 +3,30 @@ import pandas as pd
 from tqdm import tqdm
 from copy import deepcopy
 from random import shuffle
+from multiprocessing import Pool
 from poker.actors import User, Opponent
 from poker.utils import get_card_name, SUITS, VALUES, WinnerNotFoundException
 
+def simulate(sim_game):
+    user_wins, user_draws = False, False
+    n_cards_left = 7 - sim_game.user.hand.shape[0]
+
+    users_cards = [[row['suit'], row['value']]
+                   for _, row in sim_game.user.hand.iterrows()]
+    sim_game.prepare_deck(excluded_cards=users_cards)
+    sim_game.deal_hole(opponents_only=True)
+
+    # Complete the rest of the game and save results
+    sim_game.deal_community(n_cards=n_cards_left)
+    # card_frequencies['frequency'] \
+    #     += sim_game.user.hand_score['present'].astype(int)
+    winners = sim_game.determine_winner()
+    if sim_game.user in winners:
+        if len(winners) == 1:
+            user_wins = True
+        else:
+            user_draws = True
+    return user_wins, user_draws
 
 class Game:
 
@@ -19,6 +40,7 @@ class Game:
         self.deck = []
         self.community_cards = pd.DataFrame(columns=['suit', 'value', 'name'])
         self.pot = 0
+        self.n_cores = 4
 
         # Assign positions to players randomly
         positions = np.arange(n_players)
@@ -97,45 +119,22 @@ class Game:
             2) The probability that the user will win the game
         """
 
-        # Initialise somewhere to store the results of each simulation
-        card_frequencies = pd.DataFrame(
-            index=self.user.hand_score.index,
-            columns=['frequency'],
-            data=np.zeros([self.user.hand_score.shape[0], ])
-        )
-        user_wins, user_draws = 0, 0
-
-        # Number of deals left in the game at this stage
-        n_cards_left = 7 - self.user.hand.shape[0]
-
         # Loop through each simulation
-        for _ in tqdm(range(self.n_iter)):
+        results = []
+        with Pool(processes=self.n_cores) as pool:
+            for _ in range(self.n_iter):
+                sim_game = deepcopy(self)
+                results.append(pool.apply(simulate, [sim_game]))
 
-            # Need to randomise the contents on the deck and opponents hands
-            sim_game = deepcopy(self)
-            users_cards = [[row['suit'], row['value']]
-                           for _, row in sim_game.user.hand.iterrows()]
-            sim_game.prepare_deck(excluded_cards=users_cards)
-            sim_game.deal_hole(opponents_only=True)
+        print('Got results back')
+        user_wins, user_draws = 0, 0
+        for result in results:
+            user_wins += result[0]
+            user_draws += result[1]
 
-            # Complete the rest of the game and save results
-            sim_game.deal_community(n_cards=n_cards_left)
-            card_frequencies['frequency'] \
-                += sim_game.user.hand_score['present'].astype(int)
-            winners = sim_game.determine_winner()
-            if sim_game.user in winners:
-                if len(winners) == 1:
-                    user_wins += 1
-                else:
-                    user_draws += 1
-
-        # Turn into probabilities and assign results
-        card_frequencies /= self.n_iter
-        user_wins /= self.n_iter
-        user_draws /= self.n_iter
-        self.user.hand_score['probability_of_occurring'] = card_frequencies
-        self.user.win_probability = user_wins
-        self.user.draw_probability = user_draws
+        # self.user.hand_score['probability_of_occurring'] = card_frequencies
+        self.user.win_probability = user_wins / self.n_iter
+        self.user.draw_probability = user_draws / self.n_iter
 
     def determine_winner(self):
         for player in self.players:

@@ -1,15 +1,22 @@
 from datetime import datetime
 from poker.game import Game
+from tqdm import tqdm
 
-print(datetime.now().strftime('%H:%M:%S'))
-for _ in range(10):
-    run = Game(n_players=4, simulation_iterations=50)
-    run.deal_hole()
-    run.simulate()
-    run.deal_community(n_cards=3)
-    run.simulate()
-    run.deal_community(n_cards=1)
-    run.simulate()
-    run.deal_community(n_cards=1)
-    winner = run.determine_winner()
-print(datetime.now().strftime('%H:%M:%S'))
+if __name__ == '__main__':
+
+    print(datetime.now().strftime('%H:%M:%S'))
+    for _ in tqdm(range(10)):
+        run = Game(n_players=4, simulation_iterations=50)
+        run.deal_hole()
+        run.simulate()
+        print(run.user.hand, run.user.win_probability)
+        run.deal_community(n_cards=3)
+        run.simulate()
+        print(run.user.hand, run.user.win_probability)
+        run.deal_community(n_cards=1)
+        run.simulate()
+        print(run.user.hand, run.user.win_probability)
+        run.deal_community(n_cards=1)
+        winner = run.determine_winner()
+        print(winner)
+    print(datetime.now().strftime('%H:%M:%S'))
