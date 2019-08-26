@@ -1,13 +1,13 @@
 import numpy as np
 import pandas as pd
-from tqdm import tqdm
 from copy import deepcopy
 from random import shuffle
-from multiprocessing import Pool
+from multiprocessing import Pool, cpu_count
 from poker.actors import User, Opponent
 from poker.utils import get_card_name, SUITS, VALUES, WinnerNotFoundException
 
-def simulate(sim_game):
+def simulate(game):
+    sim_game = deepcopy(game)
     user_wins, user_draws = False, False
     n_cards_left = 7 - sim_game.user.hand.shape[0]
 
@@ -40,7 +40,7 @@ class Game:
         self.deck = []
         self.community_cards = pd.DataFrame(columns=['suit', 'value', 'name'])
         self.pot = 0
-        self.n_cores = 4
+        self.n_cores = cpu_count()
 
         # Assign positions to players randomly
         positions = np.arange(n_players)
@@ -120,11 +120,8 @@ class Game:
         """
 
         # Loop through each simulation
-        results = []
         with Pool(processes=self.n_cores) as pool:
-            for _ in range(self.n_iter):
-                sim_game = deepcopy(self)
-                results.append(pool.apply(simulate, [sim_game]))
+            results = pool.map(simulate, [self for _ in range(self.n_iter)])
 
         print('Got results back')
         user_wins, user_draws = 0, 0
