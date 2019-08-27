@@ -55,6 +55,7 @@ SUITS = {
     2: 'Hearts',
     3: 'Clubs'
 }
+suit_name_to_num = {val: key for key, val in SUITS.items()}
 
 # Encoded card values
 VALUES = {
@@ -72,6 +73,7 @@ VALUES = {
     13: 'King',
     14: 'Ace'
 }
+value_name_to_num = {val: key for key, val in VALUES.items()}
 
 
 def get_card_name(card):
