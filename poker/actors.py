@@ -60,7 +60,8 @@ class Player:
             self._add_hand_to_player('Two pairs')
             # Take top two pairs
             pair_values = \
-                value_counts[value_counts == 2].index.sort_values(ascending=False).tolist()[:2]
+                value_counts[value_counts == 2].index\
+                .sort_values(ascending=False).tolist()[:2]
             self.hand_score.loc['Two pairs', 'high_card'] = \
                 pair_values[0] + pair_values[1] / 100
             self.hand_score.at['Two pairs', 'required_cards'] = \
@@ -226,6 +227,10 @@ class Player:
         best_hand_idx = present_hands.index[0]
         best_hand_cards = present_hands.loc[best_hand_idx, 'required_cards']
         self.n_cards_remaining -= len(best_hand_cards)
+        if self.n_cards_remaining < 0:
+            print(self.n_cards_remaining)
+            print(self.hand_score)
+            print(best_hand_cards, best_hand_idx)
         assert self.n_cards_remaining >= 0, 'Remaining cards allowed has gone negative'
         
         # Assign hand score. E.G.:
@@ -271,7 +276,7 @@ class Player:
         hand_score property. Contingent on the player having enough cards
         left to include in their final 5 card hand.
 
-        Parameters
+        PARAMETERS
         ----------
         hand : str
             String indicating the hand that is present

@@ -142,3 +142,53 @@ def test_determine_winner_2():
     assert game.players[0] in winners, 'Winner not in winners list'
     assert game.players[1] not in winners, 'Loser in winners list'
     
+    
+def test_determine_winner_3():
+    """
+    Winner has a full house, but make sure that it uses the highest value 
+    full house
+    """
+    game = Game(n_players=2)
+
+    # Full house with a pair of 2s
+    player_1_cards = [
+        dict(suit=1, value=8, name='dummy_name'),
+        dict(suit=2, value=8, name='dummy_name_2'),
+        dict(suit=3, value=8, name='dummy_name_3'),
+        dict(suit=2, value=4, name='dummy_name_4'),
+        dict(suit=3, value=4, name='dummy_name_5'),
+        dict(suit=3, value=2, name='dummy_name_6'),
+        dict(suit=4, value=2, name='dummy_name_7')
+    ]
+    for card in player_1_cards:
+        game.players[0].hand = \
+            game.players[0].hand.append(card, ignore_index=True)
+    game.players[0].hand.reset_index(drop=True, inplace=True)
+
+    # Two pairs
+    player_2_cards = [
+        dict(suit=1, value=8, name='dummy_name'),
+        dict(suit=2, value=9, name='dummy_name_2'),
+        dict(suit=3, value=8, name='dummy_name_3'),
+        dict(suit=2, value=4, name='dummy_name_4'),
+        dict(suit=1, value=4, name='dummy_name_5'),
+        dict(suit=2, value=2, name='dummy_name_6'),
+        dict(suit=4, value=2, name='dummy_name_7')
+    ]
+    for card in player_2_cards:
+        game.players[1].hand = \
+            game.players[1].hand.append(card, ignore_index=True)
+    game.players[1].hand.reset_index(drop=True, inplace=True)
+
+    for player in game.players:
+        player.determine_hand()
+    assert game.players[0].hand_score.loc['Full house', 'high_card'] == 8.04
+    assert \
+        sorted(game.players[0].hand_score.loc['Full house', 'required_cards']) == \
+        sorted([[1, 8], [2, 8], [3, 8], [2, 4], [3, 4]])
+        
+    print(game.players[0].hand_score)
+    winners = game.determine_winner()
+    assert game.players[0] in winners, 'Winner not in winners list'
+    assert game.players[1] not in winners, 'Loser in winners list'
+    

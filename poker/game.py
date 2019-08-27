@@ -3,34 +3,65 @@ import pandas as pd
 from copy import deepcopy
 from random import shuffle
 from multiprocessing import Pool, cpu_count
+from itertools import repeat
 from poker.actors import User, Opponent
-from poker.utils import get_card_name, SUITS, VALUES, WinnerNotFoundException
+from poker.utils import get_card_name, SUITS, VALUES
+
 
 def simulate(game):
+    """
+    Simulate completion of a game from its current state.
+    
+    PARAMETERS
+    ----------
+    game : poker.Game
+        An instance of the Game class
+        
+    RETURNS
+    -------
+    user_wins : bool
+        Whether or not the user won the game in this simulation
+    user_draws : bool
+        Whether or not the user drew the game in this simulation
+    hand_occurrences : pandas.Series
+        A series indexed by hand name that indicates which hands the user
+        gets by the end of the simulation
+    """
+    
+    # Copy the game object to modify in the simulation
     sim_game = deepcopy(game)
+    
+    # Initialise outputs
     user_wins, user_draws = False, False
+    
+    # Get the current state of the game
     n_cards_left = 7 - sim_game.user.hand.shape[0]
-
     users_cards = [[row['suit'], row['value']]
                    for _, row in sim_game.user.hand.iterrows()]
+    
+    # Reset the deck and opponents card to allow randomness for the monte
+    # carlo sims
     sim_game.prepare_deck(excluded_cards=users_cards)
     sim_game.deal_hole(opponents_only=True)
 
     # Complete the rest of the game and save results
     sim_game.deal_community(n_cards=n_cards_left)
-    # card_frequencies['frequency'] \
-    #     += sim_game.user.hand_score['present'].astype(int)
+    hand_occurences \
+        = sim_game.user.hand_score['present'].astype(int)
     winners = sim_game.determine_winner()
+    
+    # Check results
     if sim_game.user in winners:
         if len(winners) == 1:
             user_wins = True
         else:
             user_draws = True
-    return user_wins, user_draws
+    return user_wins, user_draws, hand_occurences
+
 
 class Game:
 
-    def __init__(self, n_players, simulation_iterations):
+    def __init__(self, n_players, simulation_iterations=10, parallelise=False):
         assert n_players >= 2, 'Must be at least 2 players'
         self.n_players = n_players
         self.n_iter = simulation_iterations
@@ -40,7 +71,7 @@ class Game:
         self.deck = []
         self.community_cards = pd.DataFrame(columns=['suit', 'value', 'name'])
         self.pot = 0
-        self.n_cores = cpu_count()
+        self.n_cores = cpu_count() if parallelise else None
 
         # Assign positions to players randomly
         positions = np.arange(n_players)
@@ -120,16 +151,29 @@ class Game:
         """
 
         # Loop through each simulation
-        with Pool(processes=self.n_cores) as pool:
-            results = pool.map(simulate, [self for _ in range(self.n_iter)])
+        if self.n_cores:
+            with Pool(processes=self.n_cores) as pool:
+                results = \
+                    pool.map(simulate, repeat(self, self.n_iter))
+        else:
+            results = map(simulate, repeat(self, self.n_iter))
 
-        print('Got results back')
+        # Initialise variables to store results
+        card_frequencies = pd.DataFrame(
+            index=self.user.hand_score.index,
+            columns=['frequency'],
+            data=np.zeros([self.user.hand_score.shape[0], ])
+        )
         user_wins, user_draws = 0, 0
+        
+        # Get results from the simulations
         for result in results:
             user_wins += result[0]
             user_draws += result[1]
+            card_frequencies += result[2]
 
-        # self.user.hand_score['probability_of_occurring'] = card_frequencies
+        # Return results to the user object
+        self.user.hand_score['probability_of_occurring'] = card_frequencies
         self.user.win_probability = user_wins / self.n_iter
         self.user.draw_probability = user_draws / self.n_iter
 

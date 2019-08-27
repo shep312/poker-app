@@ -1,6 +1,3 @@
-import operator as op
-from functools import reduce
-from numpy import arange, array
 
 
 # Define the possible hands and their ranks
@@ -76,14 +73,6 @@ VALUES = {
     14: 'Ace'
 }
 
-# Possible straights for the probability calc
-possible_straights = [arange(i, i + 5) for i in range(1, 11)]
-possible_straights.append(array([14, 2, 3, 4, 5]))
-
-# Possible full houses for the probability calc
-possible_full_houses = [[i, i, i, j, j] for i in range(2, 14)
-                        for j in range(2, 14) if i != j]
-
 
 def get_card_name(card):
     """
@@ -100,30 +89,3 @@ def get_card_name(card):
     A string describing the hand in English
     """
     return '{} of {}'.format(VALUES[card[1]], SUITS[card[0]])
-
-
-def ncr(n, r):
-    """
-    Calculates the combination of a selection of items from a set
-    e.g. a selection of cards from a draw. Used a lot in probability
-    calculations
-
-    PARAMETERS
-    ----------
-    n : int
-        Number of total elements in the set (e.g. 52 cards in a deck)
-    r : int
-        Number of selections (e.g. 5 cards in a draw)
-
-    RETURNS
-    -------
-    The number of possible combinations
-    """
-    r = min(r, n - r)
-    numerator = reduce(op.mul, range(n, n - r, -1), 1)
-    denominator = reduce(op.mul, range(1, r + 1), 1)
-    return numerator / denominator
-
-
-class WinnerNotFoundException(Exception):     
-    pass
