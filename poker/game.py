@@ -170,10 +170,11 @@ class Game:
         for result in results:
             user_wins += result[0]
             user_draws += result[1]
-            card_frequencies += result[2]
+            card_frequencies['frequency'] += result[2]
 
         # Return results to the user object
-        self.user.hand_score['probability_of_occurring'] = card_frequencies
+        self.user.hand_score['probability_of_occurring'] = \
+            card_frequencies['frequency'] / self.n_iter
         self.user.win_probability = user_wins / self.n_iter
         self.user.draw_probability = user_draws / self.n_iter
 

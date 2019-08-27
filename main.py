@@ -6,7 +6,7 @@ if __name__ == '__main__':
 
     print(datetime.now().strftime('%H:%M:%S'))
     for _ in tqdm(range(10)):
-        run = Game(n_players=4, simulation_iterations=50, parallelise=False)
+        run = Game(n_players=4, simulation_iterations=5, parallelise=False)
         run.deal_hole()
         run.simulate()
         print(run.user.hand, run.user.win_probability)
