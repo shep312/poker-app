@@ -4,7 +4,7 @@ from copy import deepcopy
 from random import shuffle
 from multiprocessing import Pool, cpu_count
 from itertools import repeat
-from poker.actors import User, Opponent
+from poker.actors import User, Opponent, Player
 from poker.utils import get_card_name, SUITS, VALUES
 
 
@@ -101,40 +101,51 @@ class Game:
                 self.deck.remove(card)
         shuffle(self.deck)
 
-    def rotate_dealer(self):
-        pass
+    def deal_card(self, recipient=None, card=None):
+        if not card:
+            card = self.deck[-1]
 
-    def deal_card(self, recipient=None):
-        card = self.deck[-1]
         card_dict = {
             'suit': card[0],
             'value': card[1],
             'name': get_card_name(card)
         }
-        if recipient:
-            recipient.hole = \
-                recipient.hole.append(card_dict, ignore_index=True)
-            recipient.hole.reset_index(drop=True, inplace=True)
-        else:
+        if not recipient:
             self.community_cards = \
                 self.community_cards.append(card_dict, ignore_index=True)
             self.community_cards.reset_index(drop=True, inplace=True)
+        else:
+            recipient.hole = recipient.hole.append(card_dict, ignore_index=True)
+            recipient.hole.reset_index(drop=True, inplace=True)
+            recipient.hand = recipient.hole.copy()
+
         self.deck.remove(card)
 
     def deal_hole(self, opponents_only=False):
         recipients = self.opponents if opponents_only else self.players
         for player in recipients:
-            if opponents_only:
+            if not player.hole.empty:
                 player.hole = pd.DataFrame(columns=['suit', 'value', 'name'])
             for _ in range(2):
-                self.deal_card(player)
-            player.hand = player.hole.copy()
+                self.deal_card(recipient=player)
         for player in recipients:
             player.determine_hand()
 
-    def deal_community(self, n_cards=1):
-        for _ in range(n_cards):
-            self.deal_card()
+    def deal_community(self, n_cards=None, cards=None):
+        if all([n_cards, cards]):
+            raise ValueError('Cannot specify a number of cards to draw AND '
+                             'specific cards to draw')
+
+        if n_cards:
+            for _ in range(n_cards):
+                self.deal_card()
+        elif cards:
+            for card in cards:
+                self.deal_card(card=card)
+        else:
+            raise ValueError('Must specify either the number of cards to '
+                             'draw or the specific cards')
+
         for player in self.players:
             if not player.folded:
                 player.hand = pd.concat([player.hole, self.community_cards])

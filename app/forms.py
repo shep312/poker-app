@@ -22,3 +22,23 @@ class HoleForm(FlaskForm):
     card_2_suit = SelectField('Card 2 suit', choices=suit_choices)
 
     submit = SubmitField('Calculate odds')
+
+
+class FlopForm(FlaskForm):
+    card_1_values = SelectField('Card 1 value', choices=value_choices)
+    card_1_suit = SelectField('Card 1 suit', choices=suit_choices)
+
+    card_2_values = SelectField('Card 2 value', choices=value_choices)
+    card_2_suit = SelectField('Card 2 suit', choices=suit_choices)
+
+    card_3_values = SelectField('Card 3 value', choices=value_choices)
+    card_3_suit = SelectField('Card 3 suit', choices=suit_choices)
+
+    submit = SubmitField('Calculate odds')
+
+
+class TurnOrRiverForm(FlaskForm):
+    card_1_values = SelectField('Card 1 value', choices=value_choices)
+    card_1_suit = SelectField('Card 1 suit', choices=suit_choices)
+
+    submit = SubmitField('Calculate odds')

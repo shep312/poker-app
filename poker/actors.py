@@ -46,9 +46,9 @@ class Player:
                 
         # Pair
         value_counts = self.hand['value'].value_counts()
-        if any(value_counts == 2):
+        if any(value_counts >= 2):
             self._add_hand_to_player('Pair')
-            pair_value = value_counts[value_counts == 2].index.max()
+            pair_value = value_counts[value_counts >= 2].index.max()
             self.hand_score.loc['Pair', 'high_card'] = pair_value
             # Need two of the cards with this value
             self.hand_score.at['Pair', 'required_cards'] = \
@@ -69,7 +69,7 @@ class Player:
                     .values.tolist()
 
         # Three of a kind
-        if any(value_counts == 3):
+        if any(value_counts >= 3):
             self._add_hand_to_player('Three of a kind')
             three_value = value_counts[value_counts == 3].index.max()
             self.hand_score.loc['Three of a kind', 'high_card'] = three_value
