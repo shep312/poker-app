@@ -45,7 +45,8 @@ def simulate(game):
     sim_game.deal_hole(opponents_only=True)
 
     # Complete the rest of the game and save results
-    sim_game.deal_community(n_cards=n_cards_left)
+    if n_cards_left:
+        sim_game.deal_community(n_cards=n_cards_left)
     hand_occurences \
         = sim_game.user.hand_score['present'].astype(int)
     winners = sim_game.determine_winner()

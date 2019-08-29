@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <div style="float: left;">
+        <h2>Flop cards</h2>
+        {{ hand | safe}}
+        <h3>Hand probabilities at flop:</h3>
+        {{ hand_probs | safe }}
+        <h3>Win probability at flop:</h3>
+        {{ win_prob }} %
+    </div>
+{% endblock %}
