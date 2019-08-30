@@ -42,7 +42,7 @@ def simulate(game):
     # Reset the deck and opponents card to allow randomness for the monte
     # carlo sims
     sim_game.prepare_deck(excluded_cards=users_cards)
-    sim_game.deal_hole(opponents_only=True)
+    sim_game.reset_hole(opponents_only=True)
 
     # Complete the rest of the game and save results
     if n_cards_left:
@@ -131,6 +131,13 @@ class Game:
                 self.deal_card(recipient=player)
         for player in recipients:
             player.determine_hand()
+
+    def reset_hole(self, opponents_only=True):
+        self.deal_hole(opponents_only)
+        recipients = self.opponents if opponents_only else self.players
+        for player in recipients:
+            player.hand = pd.concat([player.hole, self.community_cards])
+            player.hand.reset_index(drop=True, inplace=True)
 
     def deal_community(self, n_cards=None, cards=None):
         if all([n_cards, cards]):

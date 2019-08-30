@@ -1,8 +1,5 @@
 from app import app
 from poker.game import Game
-from flask import render_template, request, redirect
-from app.forms import HoleForm, FlopForm, TurnOrRiverForm
-
 
 
 def test_app_game():
@@ -28,4 +25,3 @@ def test_app_game():
     river_card = [[3, 9]]
     app.config['game'].deal_community(cards=river_card)
     app.config['game'].simulate()
-    

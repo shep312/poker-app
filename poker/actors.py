@@ -23,6 +23,7 @@ class Player:
         self.hand_score['required_cards'] = \
             np.empty((len(self.hand_score), 0)).tolist()
         self.hand_scores_numeric = []
+        self.best_five_card_hand = []
         self.n_cards_remaining = 5
 
     def determine_hand(self):
@@ -240,6 +241,8 @@ class Player:
             present_hands.loc[best_hand_idx, 'hand_rank'] * 100 \
             + present_hands.loc[best_hand_idx, 'high_card']
         self.hand_scores_numeric.append(hand_score_numeric)
+        self.best_five_card_hand += best_hand_cards
+        assert len(self.best_five_card_hand) <= 5, 'Too many cards in best hand'
             
         # Rescore without the best hand
         self._remove_cards(best_hand_cards)

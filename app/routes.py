@@ -10,7 +10,7 @@ def index():
 
     if request.method == 'POST':
         app.config['game'] = Game(n_players=form.n_players.data,
-                                  simulation_iterations=5,
+                                  simulation_iterations=50,
                                   parallelise=True)
         card_1 = [int(form.card_1_suit.data), int(form.card_1_values.data)]
         card_2 = [int(form.card_2_suit.data), int(form.card_2_values.data)]
