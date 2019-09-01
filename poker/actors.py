@@ -79,10 +79,6 @@ class Player:
                     .values.tolist()[:3]
 
         # Straight
-        aces_high_hand = self.hand.copy()
-        aces_low_hand = aces_high_hand.copy()
-        aces_low_hand['value'] = aces_low_hand['value'].replace(14, 1)
-
         def calc_streak(hand):
             hand = hand.sort_values(by='value')
             hand['diff'] = hand['value'].diff()
@@ -90,8 +86,18 @@ class Player:
             hand['streak'] = hand.groupby('not_linked').cumcount()
             return hand
 
-        aces_high_hand = calc_streak(aces_high_hand)
-        aces_low_hand = calc_streak(aces_low_hand)
+        # Create different hands based on aces high and aces low.
+        # Only make a difference between them if an ace is present to save
+        # expensive calls to calc strea
+        aces_high_hand = self.hand.copy()
+        if 14 in aces_high_hand['value'].values:
+            aces_low_hand = aces_high_hand.copy()
+            aces_low_hand['value'] = aces_low_hand['value'].replace(14, 1)
+            aces_high_hand = calc_streak(aces_high_hand)
+            aces_low_hand = calc_streak(aces_low_hand)
+        else:
+            aces_high_hand = calc_streak(aces_high_hand)
+            aces_low_hand = aces_high_hand.copy()
 
         straight_type = None
         if aces_high_hand['streak'].max() >= 4:

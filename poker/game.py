@@ -47,6 +47,8 @@ def simulate(game):
     # Complete the rest of the game and save results
     if n_cards_left:
         sim_game.deal_community(n_cards=n_cards_left)
+    for player in sim_game.players:
+        player.determine_hand()
     hand_occurences \
         = sim_game.user.hand_score['present'].astype(int)
     winners = sim_game.determine_winner()
@@ -129,7 +131,6 @@ class Game:
                 player.hole = pd.DataFrame(columns=['suit', 'value', 'name'])
             for _ in range(2):
                 self.deal_card(recipient=player)
-        for player in recipients:
             player.determine_hand()
 
     def reset_hole(self, opponents_only=True):
@@ -158,8 +159,6 @@ class Game:
             if not player.folded:
                 player.hand = pd.concat([player.hole, self.community_cards])
                 player.hand.reset_index(drop=True, inplace=True)
-        for player in self.players:
-            player.determine_hand()
             
     def simulate(self):
         """
