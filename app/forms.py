@@ -15,7 +15,7 @@ class HoleForm(FlaskForm):
     n_players = IntegerField(
         label='Number of players',
         validators=[DataRequired(), NumberRange(min=2, max=8)],
-        default=4,
+        default=6,
         render_kw=input_style
     )
 
